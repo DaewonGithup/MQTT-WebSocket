@@ -19,3 +19,16 @@ npm start
 ```bash
 npm test
 ```
+
+## 브랜치 규칙 (Gitflow)
+
+| 브랜치 | 용도 | 시작 → 합칠 곳 |
+|---|---|---|
+| `main` | 출시된 버전. 합칠 때마다 `vX.Y.Z` 태그 | - |
+| `develop` | 다음 출시를 위한 개발 통합 | - |
+| `feature/이름` | 기능 하나 개발 | `develop` → `develop` |
+| `release/X.Y.0` | 출시 전 테스트·수정, 버전 올리기 | `develop` → `main` + `develop` |
+| `hotfix/X.Y.Z` | 운영 중 긴급 버그 수정 | `main` → `main` + `develop` |
+
+- 임시 브랜치(feature, release, hotfix)는 PR로 합친 뒤 삭제합니다.
+- 커밋 메시지는 `feat:`, `fix:`, `docs:`, `test:`, `chore:`로 시작합니다.

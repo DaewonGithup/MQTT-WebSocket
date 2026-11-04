@@ -11,13 +11,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/DaewonGithup/MQTT-Webtransport.git"
+    "url": "git+https://github.com/DaewonGithup/MQTT-WebSocket.git"
   },
   "type": "module",
   "bugs": {
-    "url": "https://github.com/DaewonGithup/MQTT-Webtransport/issues"
+    "url": "https://github.com/DaewonGithup/MQTT-WebSocket/issues"
   },
-  "homepage": "https://github.com/DaewonGithup/MQTT-Webtransport#readme",
+  "homepage": "https://github.com/DaewonGithup/MQTT-WebSocket#readme",
   "private": true,
   "dependencies": {
     "aedes": "^1.2.0",
