@@ -1,6 +1,6 @@
 # MQTT-Webtransport
 
-같은 와이파이에 있는 사람끼리 브라우저만으로 메시지를 주고받는 로컬 MQTT 공유 사이트입니다. 설계는 [docs/design.md](docs/design.md)를 보세요.
+같은 와이파이에 있는 사람끼리 브라우저만으로 메시지를 주고받는 로컬 MQTT 공유 사이트입니다. 설계는 [docs/design.md](docs/design.md), 버전별 변경 내용은 [docs/update.md](docs/update.md)를 보세요.
 
 ## 실행
 
