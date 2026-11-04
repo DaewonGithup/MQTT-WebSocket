@@ -33,3 +33,13 @@ test('이 PC에서 연 호스트 화면은 토픽을 받는다', async () => {
   assert.strictEqual((await r.json()).topic, s.topic)
   await s.close()
 })
+
+test('세션 종료 요청은 입장한 사람이 있어도 ok 응답을 받은 뒤 끊긴다', async () => {
+  const s = await startSession(0)
+  const a = await connect(s)
+  await a.subscribeAsync(s.topic)
+  const r = await fetch(`http://127.0.0.1:${s.port}/host`, { method: 'POST' })
+  assert.strictEqual(await r.text(), 'ok')
+  await new Promise((resolve) => s.server.once('session-closed', resolve))
+  a.end(true)
+})

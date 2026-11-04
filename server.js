@@ -86,8 +86,8 @@ export async function startSession (port = 8080, { maxFileBytes = 100 * 1024 * 1
     if (req.url === '/host' && isLocal(req)) {
       if (req.method === 'GET') return hostInfo(res)
       if (req.method === 'POST') {
-        res.end('ok')
-        return session.close()
+        // 응답을 다 보낸 뒤에 연결을 끊어야 호스트 화면이 종료를 알 수 있음
+        return res.end('ok', () => session.close())
       }
     }
     res.statusCode = 404
@@ -163,7 +163,9 @@ export async function startSession (port = 8080, { maxFileBytes = 100 * 1024 * 1
 
     const timer = setTimeout(() => removeFile(id), fileTtlMs)
     files.set(id, { name, size, timer })
-    notify({ type: 'file', id, name, size, expiresAt: Date.now() + fileTtlMs })
+    // 보낸 사람 표시용 id. 화면에서 내 파일을 오른쪽에 그리는 데만 씀
+    const from = /^[a-z0-9]{1,16}$/.test(req.headers['x-from'] ?? '') ? req.headers['x-from'] : undefined
+    notify({ type: 'file', id, name, size, from, expiresAt: Date.now() + fileTtlMs })
     res.setHeader('Content-Type', 'application/json')
     res.end(JSON.stringify({ id }))
   }
