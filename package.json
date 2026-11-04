@@ -1,0 +1,27 @@
+{
+  "name": "mqtt-webtransport",
+  "version": "1.0.0",
+  "description": "",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "node --test",
+    "start": "node server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DaewonGithup/MQTT-Webtransport.git"
+  },
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/DaewonGithup/MQTT-Webtransport/issues"
+  },
+  "homepage": "https://github.com/DaewonGithup/MQTT-Webtransport#readme",
+  "private": true,
+  "dependencies": {
+    "aedes": "^1.2.0",
+    "mqtt": "^5.16.1",
+    "ws": "^8.22.1"
+  }
+}
