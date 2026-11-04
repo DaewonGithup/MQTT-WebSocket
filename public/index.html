@@ -46,6 +46,8 @@
   <progress id="progress" max="1" value="0" hidden></progress>
 </div>
 
+<p id="closed" role="status" hidden>세션이 종료되어 모든 내용이 삭제되었습니다.</p>
+
 <script src="/mqtt.min.js"></script>
 <script>
 const $ = (id) => document.getElementById(id)
@@ -69,8 +71,21 @@ fetch('/host').then((r) => r.ok && r.json()).then((h) => {
   $('topic').value = h.topic
 }).catch(() => {})
 
+// 호스트·참여자 모두 같은 종료 화면으로 바꿈 (두 번 불려도 한 번만)
+function sessionClosed () {
+  if (!$('closed').hidden) return
+  $('log').replaceChildren()
+  for (const id of ['host', 'join', 'chat']) $(id).hidden = true
+  $('closed').hidden = false
+  client?.end()
+}
+
 $('end').onclick = () => {
-  if (confirm('세션을 끝내고 모든 메시지를 지울까요?')) fetch('/host', { method: 'POST' })
+  if (!confirm('세션을 끝내고 모든 메시지를 지울까요?')) return
+  // 호스트가 입장하지 않았으면 MQTT 종료 알림을 못 받으므로 응답으로 바로 화면을 바꿈
+  fetch('/host', { method: 'POST' })
+    .then((r) => r.ok ? sessionClosed() : alert('세션 종료에 실패했습니다.'))
+    .catch(() => alert('서버에 연결할 수 없습니다. 이미 종료되었을 수 있습니다.'))
 }
 
 $('join').onsubmit = (e) => {
@@ -93,10 +108,7 @@ $('join').onsubmit = (e) => {
     let m
     try { m = JSON.parse(payload) } catch { return }
     if (m.type === 'session-closed') {
-      $('log').replaceChildren()
-      $('chat').hidden = true
-      document.body.append('세션이 종료되어 모든 내용이 삭제되었습니다.')
-      client.end()
+      sessionClosed()
     } else if (m.type === 'text' && typeof m.text === 'string') {
       add(m.text, m.from === me ? 'me' : '')
     } else if (m.type === 'file' && /^[0-9a-f]{32}$/.test(m.id)) {
