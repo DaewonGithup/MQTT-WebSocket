@@ -38,6 +38,12 @@
     <input id="msg" placeholder="메시지 입력" required autocomplete="off">
     <button>보내기</button>
   </form>
+  <form id="upload">
+    <label for="file" hidden>파일</label>
+    <input id="file" type="file" required accept=".png,.jpg,.jpeg,.gif,.webp,.pdf,.txt,.zip,.docx,.xlsx,.pptx,.hwp">
+    <button>파일 보내기</button>
+  </form>
+  <progress id="progress" max="1" value="0" hidden></progress>
 </div>
 
 <script src="/mqtt.min.js"></script>
@@ -93,6 +99,20 @@ $('join').onsubmit = (e) => {
       client.end()
     } else if (m.type === 'text' && typeof m.text === 'string') {
       add(m.text, m.from === me ? 'me' : '')
+    } else if (m.type === 'file' && /^[0-9a-f]{32}$/.test(m.id)) {
+      // 주소는 id로만 만듦: 남이 보낸 가짜 링크(외부 주소 등)를 막기 위해
+      const p = document.createElement('p')
+      p.id = 'f-' + m.id
+      const a = document.createElement('a')
+      a.href = '/files/' + m.id
+      a.download = ''
+      a.textContent = `📎 ${m.name} (${(m.size / 1024).toFixed(1)} KB)`
+      p.append(a)
+      $('log').append(p)
+      $('log').scrollTop = $('log').scrollHeight
+    } else if (m.type === 'file-removed') {
+      const p = document.getElementById('f-' + m.id)
+      if (p) p.textContent = p.textContent + ' (만료되어 삭제됨)'
     }
   })
   client.on('close', () => { if (!$('chat').hidden) add('연결이 끊어졌습니다.', 'sys') })
@@ -102,6 +122,25 @@ $('send').onsubmit = (e) => {
   e.preventDefault()
   client.publish(topic, JSON.stringify({ type: 'text', from: me, text: $('msg').value }))
   $('msg').value = ''
+}
+
+// fetch는 업로드 진행률을 못 줘서 XMLHttpRequest 사용
+$('upload').onsubmit = (e) => {
+  e.preventDefault()
+  const file = $('file').files[0]
+  const xhr = new XMLHttpRequest()
+  xhr.open('POST', '/files')
+  xhr.setRequestHeader('X-Topic', topic)
+  xhr.setRequestHeader('X-Filename', encodeURIComponent(file.name))
+  $('progress').hidden = false
+  xhr.upload.onprogress = (ev) => { if (ev.lengthComputable) $('progress').value = ev.loaded / ev.total }
+  xhr.onloadend = () => {
+    $('progress').hidden = true
+    $('progress').value = 0
+    if (xhr.status === 200) $('file').value = ''
+    else add(`파일 전송 실패: ${xhr.responseText || '연결 오류'}`, 'sys')
+  }
+  xhr.send(file)
 }
 </script>
 </body>
