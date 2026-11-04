@@ -21,13 +21,16 @@
 <section id="host" hidden>
   <strong>호스트</strong><br>
   토픽: <code id="host-topic"></code><br>
-  접속 주소: <span id="host-addr"></span><br>
+  PIN: <code id="host-pin"></code><br>
+  <div id="host-joins"></div>
   <button id="end">세션 종료 (전체 삭제)</button>
 </section>
 
 <form id="join">
   <label for="topic">토픽</label>
   <input id="topic" placeholder="호스트가 알려준 토픽" required autocomplete="off">
+  <label for="pin">PIN</label>
+  <input id="pin" placeholder="6자리 숫자" required autocomplete="off" inputmode="numeric" pattern="\d{6}" maxlength="6">
   <button>입장</button>
 </form>
 
@@ -52,7 +55,11 @@
 <script>
 const $ = (id) => document.getElementById(id)
 const me = Math.random().toString(36).slice(2)
-let client, topic
+let client, topic, pin
+
+// QR로 들어오면 주소 끝(#t=토픽)에서 토픽을 미리 채움
+const fromQr = new URLSearchParams(location.hash.slice(1)).get('t')
+if (fromQr) $('topic').value = fromQr
 
 function add (text, cls) {
   const p = document.createElement('p')
@@ -67,8 +74,18 @@ fetch('/host').then((r) => r.ok && r.json()).then((h) => {
   if (!h) return
   $('host').hidden = false
   $('host-topic').textContent = h.topic
-  $('host-addr').textContent = h.addresses.join(', ') || '(네트워크 없음)'
+  $('host-pin').textContent = h.pin
+  if (!h.joins.length) $('host-joins').textContent = '접속 주소 없음 (네트워크 연결을 확인하세요)'
+  for (const j of h.joins) {
+    const fig = document.createElement('figure')
+    fig.innerHTML = j.qr // 우리 서버가 만든 SVG
+    const cap = document.createElement('figcaption')
+    cap.textContent = j.url.split('/#')[0]
+    fig.append(cap)
+    $('host-joins').append(fig)
+  }
   $('topic').value = h.topic
+  $('pin').value = h.pin
 }).catch(() => {})
 
 // 호스트·참여자 모두 같은 종료 화면으로 바꿈 (두 번 불려도 한 번만)
@@ -91,7 +108,13 @@ $('end').onclick = () => {
 $('join').onsubmit = (e) => {
   e.preventDefault()
   topic = $('topic').value.trim()
-  client = mqtt.connect(`ws://${location.host}/mqtt`, { reconnectPeriod: 0 })
+  pin = $('pin').value.trim()
+  client = mqtt.connect(`ws://${location.host}/mqtt`, { reconnectPeriod: 0, username: 'guest', password: pin })
+  // PIN이 틀리거나 잠기면 브로커가 연결을 거부함
+  client.on('error', () => {
+    alert('PIN이 맞지 않습니다. 5번 틀리면 1분 동안 입장할 수 없습니다.')
+    client.end()
+  })
   client.on('connect', () => {
     client.subscribe(topic, (err, granted) => {
       // 토픽이 틀리면 브로커가 거부(qos 128)
@@ -143,6 +166,7 @@ $('upload').onsubmit = (e) => {
   const xhr = new XMLHttpRequest()
   xhr.open('POST', '/files')
   xhr.setRequestHeader('X-Topic', topic)
+  xhr.setRequestHeader('X-Pin', pin)
   xhr.setRequestHeader('X-Filename', encodeURIComponent(file.name))
   $('progress').hidden = false
   xhr.upload.onprogress = (ev) => { if (ev.lengthComputable) $('progress').value = ev.loaded / ev.total }
