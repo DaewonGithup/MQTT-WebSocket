@@ -4,20 +4,20 @@ import fs from 'node:fs'
 import mqtt from 'mqtt'
 import { startSession } from '../server.js'
 
-const connect = (port) => mqtt.connectAsync(`ws://127.0.0.1:${port}/mqtt`, { reconnectPeriod: 0, forceNativeWebSocket: true })
+const connect = (s, pin = s.pin) => mqtt.connectAsync(`ws://127.0.0.1:${s.port}/mqtt`, { reconnectPeriod: 0, forceNativeWebSocket: true, username: 'guest', password: pin })
 const wait = (ms) => new Promise((r) => setTimeout(r, ms))
 
 function upload (s, name, body, topic = s.topic) {
   return fetch(`http://127.0.0.1:${s.port}/files`, {
     method: 'POST',
-    headers: { 'X-Topic': topic, 'X-Filename': encodeURIComponent(name) },
+    headers: { 'X-Topic': topic, 'X-Pin': s.pin, 'X-Filename': encodeURIComponent(name) },
     body
   })
 }
 
 test('파일을 올리면 MQTT로 알림이 가고, 내려받을 수 있다', async () => {
   const s = await startSession(0)
-  const c = await connect(s.port)
+  const c = await connect(s)
   await c.subscribeAsync(s.topic)
   const got = []
   c.on('message', (_, p) => got.push(JSON.parse(p)))
