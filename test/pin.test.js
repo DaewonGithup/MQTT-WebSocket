@@ -31,7 +31,7 @@ test('호스트 화면은 PIN과 QR(SVG)을 받는다', async () => {
   const h = await (await fetch(`http://127.0.0.1:${s.port}/host`)).json()
   assert.strictEqual(h.pin, s.pin)
   for (const j of h.joins) {
-    assert.ok(j.url.endsWith(`/#t=${s.topic}`))
+    assert.ok(j.url.endsWith(`/#t=${encodeURIComponent(s.topic)}`))
     assert.ok(!j.url.includes(s.pin))
     assert.match(j.qr, /^<svg/)
   }
