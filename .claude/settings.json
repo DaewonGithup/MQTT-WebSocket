@@ -1,0 +1,32 @@
+{
+  "extraKnownMarketplaces": {
+    "headroom-marketplace": {
+      "source": { "source": "github", "repo": "headroomlabs-ai/headroom" }
+    },
+    "ponytail": {
+      "source": { "source": "github", "repo": "DietrichGebert/ponytail" }
+    },
+    "effortless": {
+      "source": { "source": "github", "repo": "HeyCubit/effortless" }
+    }
+  },
+  "enabledPlugins": {
+    "headroom@headroom-marketplace": true,
+    "ponytail@ponytail": true,
+    "effortless@effortless": true
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/session-start.sh",
+            "timeout": 300
+          }
+        ]
+      }
+    ]
+  }
+}
