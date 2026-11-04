@@ -62,3 +62,23 @@ test('만료 시간이 지나면 파일이 지워지고, 세션 종료 시 폴�
   await s.close()
   assert.strictEqual(fs.existsSync(s.dir), false)
 })
+
+test('파일 알림에 보낸 사람 id가 담기고, 이상한 값은 버린다', async () => {
+  const s = await startSession(0)
+  const c = await connect(s)
+  await c.subscribeAsync(s.topic)
+  const got = []
+  c.on('message', (_, p) => got.push(JSON.parse(p)))
+  const send = (from) => fetch(`http://127.0.0.1:${s.port}/files`, {
+    method: 'POST',
+    headers: { 'X-Topic': s.topic, 'X-Pin': s.pin, 'X-From': from, 'X-Filename': 'a.txt' },
+    body: 'x'
+  })
+  await send('abc123')
+  await send('<script>')
+  await wait(100)
+  assert.strictEqual(got[0].from, 'abc123')
+  assert.strictEqual(got[1].from, undefined)
+  c.end(true)
+  await s.close()
+})

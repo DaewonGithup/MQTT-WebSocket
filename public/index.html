@@ -31,6 +31,7 @@
   .info dt { color: var(--muted); }
   .info dd { margin: 0; font-family: ui-monospace, Consolas, monospace; word-break: break-all; }
   #host-pin { font-size: 1.6rem; letter-spacing: .3em; font-weight: 700; color: var(--primary); }
+  .hint { font-size: .8rem; color: var(--muted); margin: 6px 0 16px; }
   #host-joins { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
   #host-joins figure { margin: 0; text-align: center; }
   /* QR은 어두운 화면에서도 잘 찍히게 흰 바탕 유지 */
@@ -54,7 +55,10 @@
   .msg.sys { align-self: center; background: none; color: var(--muted); font-size: .85rem; padding: 0; }
   .msg a { color: var(--primary); font-weight: 600; }
   progress { width: 100%; height: 8px; margin-top: 10px; accent-color: var(--primary); }
-  #closed { text-align: center; color: var(--muted); }
+  #closed { text-align: center; padding: 40px 20px; }
+  #closed .closed-icon { font-size: 48px; }
+  #closed h2 { font-size: 1.3rem; margin: 8px 0; }
+  #closed p { color: var(--muted); margin: 0; }
   @media (max-width: 480px) { .row { flex-wrap: wrap; } .row button { flex: 1; } }
 </style>
 </head>
@@ -74,6 +78,12 @@
     <dt>토픽</dt><dd id="host-topic"></dd>
     <dt>PIN</dt><dd id="host-pin"></dd>
   </dl>
+  <form id="topic-form" class="row">
+    <label for="new-topic" hidden>새 토픽</label>
+    <input id="new-topic" placeholder="원하는 토픽 (한글·영문·숫자·-·_ 3~40자)" required autocomplete="off" pattern="[\w가-힣\-]{3,40}" maxlength="40">
+    <button>토픽 변경</button>
+  </form>
+  <p class="hint">토픽을 바꾸면 지금 입장한 사람은 모두 나가고 새 토픽으로 다시 들어와야 합니다.</p>
   <div id="host-joins"></div>
   <button id="end" class="danger">세션 종료 (전체 삭제)</button>
 </section>
@@ -106,7 +116,11 @@
   <progress id="progress" max="1" value="0" hidden></progress>
 </section>
 
-<p id="closed" class="card" role="status" hidden>세션이 종료되어 모든 내용이 삭제되었습니다.</p>
+<section id="closed" class="card" role="status" hidden>
+  <div class="closed-icon" aria-hidden="true">✅</div>
+  <h2>세션이 종료되었습니다</h2>
+  <p>메시지, 토픽, 파일이 모두 삭제되었습니다. 이 창은 닫아도 됩니다.</p>
+</section>
 </main>
 
 <script src="/mqtt.min.js"></script>
@@ -127,12 +141,11 @@ function add (text, cls) {
   $('log').scrollTop = $('log').scrollHeight
 }
 
-// 이 PC에서 열었을 때만 호스트 정보가 옴
-fetch('/host').then((r) => r.ok && r.json()).then((h) => {
-  if (!h) return
+function renderHost (h) {
   $('host').hidden = false
   $('host-topic').textContent = h.topic
   $('host-pin').textContent = h.pin
+  $('host-joins').replaceChildren()
   if (!h.joins.length) $('host-joins').textContent = '접속 주소 없음 (네트워크 연결을 확인하세요)'
   for (const j of h.joins) {
     const fig = document.createElement('figure')
@@ -144,7 +157,27 @@ fetch('/host').then((r) => r.ok && r.json()).then((h) => {
   }
   $('topic').value = h.topic
   $('pin').value = h.pin
-}).catch(() => {})
+}
+
+// 이 PC에서 열었을 때만 호스트 정보가 옴
+fetch('/host').then((r) => r.ok && r.json()).then((h) => h && renderHost(h)).catch(() => {})
+
+$('topic-form').onsubmit = async (e) => {
+  e.preventDefault()
+  const r = await fetch('/host/topic', { method: 'POST', body: JSON.stringify({ topic: $('new-topic').value }) })
+  if (!r.ok) return alert(await r.text())
+  $('new-topic').value = ''
+  renderHost(await r.json())
+}
+
+// 토픽이 바뀌면 입장 화면으로 돌아감 (호스트가 알려 준 새 토픽으로 다시 입장)
+function topicChanged () {
+  client?.end()
+  $('log').replaceChildren()
+  $('chat').hidden = true
+  $('join').hidden = false
+  if ($('host').hidden) alert('호스트가 토픽을 바꿨습니다. 새 토픽으로 다시 입장하세요.')
+}
 
 // 호스트·참여자 모두 같은 종료 화면으로 바꿈 (두 번 불려도 한 번만)
 function sessionClosed () {
@@ -152,6 +185,7 @@ function sessionClosed () {
   $('log').replaceChildren()
   for (const id of ['host', 'join', 'chat']) $(id).hidden = true
   $('closed').hidden = false
+  scrollTo(0, 0)
   client?.end()
 }
 
@@ -160,7 +194,8 @@ $('end').onclick = () => {
   // 호스트가 입장하지 않았으면 MQTT 종료 알림을 못 받으므로 응답으로 바로 화면을 바꿈
   fetch('/host', { method: 'POST' })
     .then((r) => r.ok ? sessionClosed() : alert('세션 종료에 실패했습니다.'))
-    .catch(() => alert('서버에 연결할 수 없습니다. 이미 종료되었을 수 있습니다.'))
+    // 응답 전에 연결이 끊겨도 서버는 이미 종료 중이므로 종료 화면을 보여 줌
+    .catch(() => sessionClosed())
 }
 
 $('join').onsubmit = (e) => {
@@ -190,13 +225,15 @@ $('join').onsubmit = (e) => {
     try { m = JSON.parse(payload) } catch { return }
     if (m.type === 'session-closed') {
       sessionClosed()
+    } else if (m.type === 'topic-changed') {
+      topicChanged()
     } else if (m.type === 'text' && typeof m.text === 'string') {
       add(m.text, m.from === me ? 'me' : '')
     } else if (m.type === 'file' && /^[0-9a-f]{32}$/.test(m.id)) {
       // 주소는 id로만 만듦: 남이 보낸 가짜 링크(외부 주소 등)를 막기 위해
       const p = document.createElement('p')
       p.id = 'f-' + m.id
-      p.className = 'msg'
+      p.className = m.from === me ? 'msg me' : 'msg'
       const a = document.createElement('a')
       a.href = '/files/' + m.id
       a.download = ''
@@ -226,6 +263,7 @@ $('upload').onsubmit = (e) => {
   xhr.open('POST', '/files')
   xhr.setRequestHeader('X-Topic', topic)
   xhr.setRequestHeader('X-Pin', pin)
+  xhr.setRequestHeader('X-From', me)
   xhr.setRequestHeader('X-Filename', encodeURIComponent(file.name))
   $('progress').hidden = false
   xhr.upload.onprogress = (ev) => { if (ev.lengthComputable) $('progress').value = ev.loaded / ev.total }

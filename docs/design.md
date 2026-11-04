@@ -1,12 +1,17 @@
 # 로컬 MQTT 파일·메시지 공유 웹사이트 설계 보고서
+# Local MQTT File & Message Sharing Site — Design Report
 
-## 1. 목적
+[한국어](#한국어) · [English](#english)
+
+## 한국어
+
+### 1. 목적
 1. 같은 와이파이와 같은 토픽이라는 조건을 만족한 사용자만 접근할 수 있게 하고, 외부 접근은 차단합니다.
 2. 앱 설치 없이 브라우저만으로 간편하게 접속하게 합니다.
 3. 파일(이미지, PDF 등)과 메시지를 주고받는 기능을 제공합니다.
 4. 전송이 끝나면 세션을 삭제해서 메시지, 토픽, 파일을 모두 제거합니다.
 
-## 2. 전체 구조
+### 2. 전체 구조
 ```
 [호스트 PC: 전송을 원하는 사용자가 프로그램 실행]
  ├─ 웹서버: 페이지 제공, 파일 업로드/다운로드 API
@@ -22,7 +27,7 @@
 - 파일은 MQTT가 아니라 HTTP로 전송합니다. MQTT는 큰 파일에 부적합하기 때문입니다(base64로 약 33% 증가, 메시지 크기 제한, 메모리 부담).
 - 통신 방식은 MQTT over WebSocket입니다(WebTransport 아님).
 
-## 3. 구현할 기능
+### 3. 구현할 기능
 
 | 구분 | 기능 |
 |---|---|
@@ -31,13 +36,13 @@
 | 보안 | 랜덤 토픽과 PIN, 파일 크기·형식 제한, 파일명 정리(경로 조작 방지), 토픽별 접근 검증 |
 | 삭제 | 종료 버튼, 프로그램 종료(SIGINT), 무활동 시간 초과, 파일별 만료 시간, 종료 시 참여자 화면 초기화 |
 
-## 4. 세션 삭제 방식
+### 4. 세션 삭제 방식
 - 브로커는 디스크에 저장하지 않는 메모리 전용으로 운영하고, retained 메시지는 종료 시 비웁니다.
 - 파일은 세션 전용 임시 폴더(`mkdtemp`)에 저장하고, 종료 시 폴더를 통째로 지웁니다. 민감한 자료는 RAM 저장을 씁니다.
 - 종료 전에 참여자에게 `session-closed`를 알려 화면을 비우고, `Cache-Control: no-store`를 적용합니다.
 - 로그에는 파일명이나 내용을 남기지 않습니다.
 
-## 5. 문제점과 대응
+### 5. 문제점과 대응
 
 | # | 문제 | 내용 | 대응 |
 |---|---|---|---|
@@ -50,16 +55,84 @@
 | 7 | 파일 위험 | 악성 파일이 공유될 수 있고, 대용량이 메모리나 디스크를 소진할 수 있습니다. | 용량과 형식 제한, 다운로드 시 `Content-Disposition: attachment`, 파일 내용을 서버에서 실행하지 않습니다. |
 | 8 | 무차별 접속 | PIN이나 토픽을 반복 시도하는 공격이 가능합니다. | 시도 횟수 제한(rate limit), 충분한 길이의 랜덤 값을 씁니다. |
 
-## 6. 개발 단계 제안
+### 6. 개발 단계 제안
 1. **MVP**: 호스트 실행, 토픽 입력, 텍스트 전송과 수신, 세션 종료 시 전체 삭제
 2. **파일 전송**: 업로드와 다운로드, 진행률 표시, 크기·형식 제한, 만료 시간
 3. **접근성·보안**: QR 코드, PIN, rate limit, 무활동 자동 종료
 4. **배포·문서화**: 단일 실행 파일 패키징, 방화벽·공용 와이파이 주의사항 안내
 
-## 7. 권장 기술
+### 7. 권장 기술
 - **서버**: Node.js, `aedes`(MQTT 브로커 내장), Express나 Fastify, `multer` 또는 스트리밍 업로드
 - **클라이언트**: 순수 HTML/JS와 `mqtt.js`(WebSocket), QR 생성 라이브러리
 - **저장**: 메모리 전용 브로커와 임시 디렉터리
 
-## 8. 결론
+### 8. 결론
 호스트가 서버를 맡고 세션 종료 시 데이터를 삭제하는 구조는 목적에 맞고 구현 가능합니다. 다만 "외부 차단"은 로컬 도메인이 아니라 **로컬 네트워크 내부 운영**에서 나오고, "완전 삭제"에는 이미 내려받은 파일 등의 한계가 있습니다. 이 두 가지를 사용자에게 분명히 안내하는 것이 중요합니다.
+
+---
+
+## English
+
+### 1. Goals
+1. Only users on the same Wi-Fi who know the same topic can get in; access from outside is blocked.
+2. Join easily with just a browser, no app install.
+3. Exchange files (images, PDFs, etc.) and messages.
+4. When the transfer is done, delete the session so all messages, topics and files are removed.
+
+### 2. Architecture
+```
+[Host PC: the user who wants to share runs the program]
+ ├─ Web server: serves the page, file upload/download API
+ ├─ MQTT broker: in-memory only, WebSocket support (e.g. aedes)
+ └─ Temporary storage: per-session folder or RAM
+
+[Participant browser] ── same Wi-Fi ── host address (xxx.local or IP, QR)
+   Enter topic → MQTT subscribe
+   Text: sent directly over MQTT
+   File: HTTP upload → MQTT notice {name, size, URL} → HTTP download
+```
+- The host acts as the server, so no separate server machine or cloud is needed.
+- Files go over HTTP, not MQTT, because MQTT is a poor fit for large files (about 33% bigger with base64, message size limits, memory pressure).
+- The transport is MQTT over WebSocket (not WebTransport).
+
+### 3. Features
+
+| Area | Features |
+|---|---|
+| Host | Start session, show join address and QR, auto-generate session PIN and topic, participant list, "End session" button |
+| Participant | Open the address, enter topic (and PIN), send and receive text, upload files (with progress), file list, download |
+| Security | Random topic and PIN, file size/type limits, file name cleanup (prevent path tricks), per-topic access checks |
+| Deletion | End button, program exit (SIGINT), idle timeout, per-file expiry, clear participant screens on end |
+
+### 4. How a session is deleted
+- The broker runs in memory only and never writes to disk; retained messages are cleared on end.
+- Files are stored in a per-session temporary folder (`mkdtemp`) and the whole folder is deleted on end. Sensitive data uses RAM storage.
+- Before ending, participants receive `session-closed` so their screens are cleared, and `Cache-Control: no-store` is applied.
+- Logs never contain file names or contents.
+
+### 5. Problems and responses
+
+| # | Problem | Details | Response |
+|---|---|---|---|
+| 1 | A local domain is not a security measure | `.local` is just mDNS name resolution. The real blocking comes from the server being inside the router with no port forwarding. | Document that it must not be exposed, and never open it to the internet. |
+| 2 | Public Wi-Fi | On networks full of strangers, such as cafés or schools, "same Wi-Fi" means little. | Use a random topic, PIN and expiry times. |
+| 3 | Plain HTTP | `.local` cannot get a public certificate, so HTTPS is awkward. Others on the same network can eavesdrop, and some browser features (e.g. clipboard) are limited. | Advise against sharing sensitive data. If needed, use a self-signed certificate, which shows a warning page. |
+| 4 | Compatibility | `.local` resolution is unreliable on Android and some devices. Guest Wi-Fi client isolation or different subnets prevent connections. | Offer both IP address access and QR codes. |
+| 5 | Host dependency | The session ends when the host PC turns off. A firewall may block the port. A browser tab alone cannot be the host, so a program is needed. | Provide firewall guidance and ship a single executable (Node.js). |
+| 6 | Limits of deletion | Files already downloaded, the other browser's history and cache, and disk recovery cannot be erased by the server. | RAM storage, no-store header, and clearly tell users the limits. |
+| 7 | File risks | Malicious files can be shared, and large files can exhaust memory or disk. | Size and type limits, `Content-Disposition: attachment` on download, never execute file contents on the server. |
+| 8 | Brute-force access | Attackers can keep trying PINs or topics. | Rate limiting and sufficiently long random values. |
+
+### 6. Development stages
+1. **MVP**: run the host, enter topic, send and receive text, delete everything on session end
+2. **File transfer**: upload and download, progress bar, size/type limits, expiry
+3. **Access and security**: QR code, PIN, rate limit, auto-end on inactivity
+4. **Distribution and docs**: single executable packaging, firewall and public Wi-Fi guidance
+
+### 7. Recommended technology
+- **Server**: Node.js, `aedes` (embedded MQTT broker), Express or Fastify, `multer` or streaming upload
+- **Client**: plain HTML/JS with `mqtt.js` (WebSocket), a QR generation library
+- **Storage**: in-memory broker and a temporary directory
+
+### 8. Conclusion
+Having the host act as the server and deleting data when the session ends fits the goals and is feasible. However, "blocking outside access" comes from **operating inside the local network**, not from the local domain, and "complete deletion" has limits such as files already downloaded. It is important to tell users about both clearly.

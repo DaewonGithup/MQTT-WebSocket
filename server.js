@@ -16,6 +16,8 @@ const INDEX = fs.readFileSync(new URL('./public/index.html', import.meta.url))
 
 const ALLOWED_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.pdf', '.txt', '.zip', '.docx', '.xlsx', '.pptx', '.hwp'])
 
+// 호스트가 정하는 토픽: MQTT 와일드카드(+, #)와 / 를 막기 위해 허용 문자만
+const TOPIC_RE = /^[\w가-힣-]{3,40}$/u
 const MAX_PIN_TRIES = 5
 const PIN_LOCK_MS = 60 * 1000
 
@@ -24,9 +26,10 @@ const isLocal = (req) => ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.s
 // 경로 조작(../, 폴더 구분자)과 제어문자를 없앤 파일 이름
 const cleanName = (name) => path.basename(name.replace(/\\/g, '/')).replace(/[\x00-\x1f<>:"|?*]/g, '_').slice(0, 200)
 
-export async function startSession (port = 8080, { maxFileBytes = 100 * 1024 * 1024, fileTtlMs = 30 * 60 * 1000 } = {}) {
-  // 랜덤 토픽: 추측해서 들어오기 어렵게 함
-  const topic = 'room/' + crypto.randomBytes(8).toString('hex')
+export async function startSession (port = 8080, { maxFileBytes = 100 * 1024 * 1024, fileTtlMs = 30 * 60 * 1000, topic: customTopic } = {}) {
+  if (customTopic !== undefined && !TOPIC_RE.test(customTopic)) throw new Error('토픽은 한글·영문·숫자·-·_ 로 3~40자여야 합니다.')
+  // 호스트가 정하지 않으면 랜덤 토픽: 추측해서 들어오기 어렵게 함
+  let topic = customTopic ?? 'room/' + crypto.randomBytes(8).toString('hex')
   // 세션 전용 임시 폴더. 종료 시 통째로 지움
   const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'mqtt-share-'))
   const files = new Map() // id -> { name, size, timer }
@@ -79,20 +82,12 @@ export async function startSession (port = 8080, { maxFileBytes = 100 * 1024 * 1
     const fileId = req.method === 'GET' && req.url.match(/^\/files\/([0-9a-f]{32})$/)?.[1]
     if (fileId) return download(fileId, res)
     // 호스트(이 PC에서 연 브라우저)만 토픽을 보고 세션을 끝낼 수 있음
+    if (req.url === '/host/topic' && req.method === 'POST' && isLocal(req)) return changeTopic(req, res)
     if (req.url === '/host' && isLocal(req)) {
-      if (req.method === 'GET') {
-        // QR에는 주소와 토픽만 넣고 PIN은 넣지 않음: 화면을 찍은 사진만으로 들어오지 못하게
-        const urls = lanAddresses(session.port).map((a) => `${a}/#t=${topic}`)
-        return Promise.all(urls.map((u) => QRCode.toString(u, { type: 'svg', margin: 1 })))
-          .then((qrs) => {
-            res.setHeader('Content-Type', 'application/json')
-            res.end(JSON.stringify({ topic, pin, joins: urls.map((url, i) => ({ url, qr: qrs[i] })) }))
-          })
-          .catch(() => { res.statusCode = 500; res.end() })
-      }
+      if (req.method === 'GET') return hostInfo(res)
       if (req.method === 'POST') {
-        res.end('ok')
-        return session.close()
+        // 응답을 다 보낸 뒤에 연결을 끊어야 호스트 화면이 종료를 알 수 있음
+        return res.end('ok', () => session.close())
       }
     }
     res.statusCode = 404
@@ -100,6 +95,44 @@ export async function startSession (port = 8080, { maxFileBytes = 100 * 1024 * 1
   })
 
   const notify = (msg) => broker.publish({ topic, payload: JSON.stringify(msg), qos: 0, retain: false }, () => {})
+
+  function hostInfo (res) {
+    // QR에는 주소와 토픽만 넣고 PIN은 넣지 않음: 화면을 찍은 사진만으로 들어오지 못하게
+    const urls = lanAddresses(session.port).map((a) => `${a}/#t=${encodeURIComponent(topic)}`)
+    return Promise.all(urls.map((u) => QRCode.toString(u, { type: 'svg', margin: 1 })))
+      .then((qrs) => {
+        res.setHeader('Content-Type', 'application/json')
+        res.end(JSON.stringify({ topic, pin, joins: urls.map((url, i) => ({ url, qr: qrs[i] })) }))
+      })
+      .catch(() => { res.statusCode = 500; res.end() })
+  }
+
+  // 호스트가 토픽을 바꾸면 옛 토픽 참여자에게 알리고 모두 끊음 (새 토픽으로 다시 입장)
+  async function changeTopic (req, res) {
+    let body = ''
+    try {
+      for await (const chunk of req) {
+        body += chunk
+        if (body.length > 1024) throw new Error('too large')
+      }
+      body = JSON.parse(body)
+    } catch {
+      res.statusCode = 400
+      return res.end('요청이 잘못되었습니다.')
+    }
+    const next = typeof body.topic === 'string' ? body.topic.trim() : ''
+    if (!TOPIC_RE.test(next)) {
+      res.statusCode = 400
+      return res.end('토픽은 한글·영문·숫자·-·_ 로 3~40자여야 합니다.')
+    }
+    if (next !== topic) {
+      const old = topic
+      topic = next
+      await new Promise((resolve) => broker.publish({ topic: old, payload: JSON.stringify({ type: 'topic-changed' }), qos: 0, retain: false }, resolve))
+      for (const ws of wss.clients) ws.close()
+    }
+    hostInfo(res)
+  }
 
   // 파일은 MQTT가 아닌 HTTP로 받고, MQTT로는 알림만 보냄
   async function upload (req, res) {
@@ -130,7 +163,9 @@ export async function startSession (port = 8080, { maxFileBytes = 100 * 1024 * 1
 
     const timer = setTimeout(() => removeFile(id), fileTtlMs)
     files.set(id, { name, size, timer })
-    notify({ type: 'file', id, name, size, expiresAt: Date.now() + fileTtlMs })
+    // 보낸 사람 표시용 id. 화면에서 내 파일을 오른쪽에 그리는 데만 씀
+    const from = /^[a-z0-9]{1,16}$/.test(req.headers['x-from'] ?? '') ? req.headers['x-from'] : undefined
+    notify({ type: 'file', id, name, size, from, expiresAt: Date.now() + fileTtlMs })
     res.setHeader('Content-Type', 'application/json')
     res.end(JSON.stringify({ id }))
   }
@@ -163,7 +198,7 @@ export async function startSession (port = 8080, { maxFileBytes = 100 * 1024 * 1
 
   let closed = false
   const session = {
-    topic,
+    get topic () { return topic },
     pin,
     port: server.address().port,
     async close () {
@@ -194,7 +229,7 @@ function lanAddresses (port) {
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const session = await startSession(Number(process.env.PORT) || 8080)
+  const session = await startSession(Number(process.env.PORT) || 8080, { topic: process.env.TOPIC || undefined })
   console.log(`세션 토픽: ${session.topic}`)
   console.log(`PIN: ${session.pin}`)
   console.log(`호스트 화면: http://localhost:${session.port}`)
