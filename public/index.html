@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>로컬 MQTT 공유</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 640px; margin: 0 auto; padding: 16px; }
+  #host { background: #eef6ff; padding: 12px; border-radius: 8px; margin-bottom: 16px; }
+  #log { border: 1px solid #ccc; border-radius: 8px; height: 50vh; overflow-y: auto; padding: 8px; margin: 12px 0; }
+  .me { text-align: right; color: #0550ae; }
+  .sys { color: #666; font-style: italic; }
+  input, button { font-size: 1rem; padding: 8px; }
+  form { display: flex; gap: 8px; }
+  form input { flex: 1; }
+</style>
+</head>
+<body>
+<h1>로컬 MQTT 공유</h1>
+
+<section id="host" hidden>
+  <strong>호스트</strong><br>
+  토픽: <code id="host-topic"></code><br>
+  접속 주소: <span id="host-addr"></span><br>
+  <button id="end">세션 종료 (전체 삭제)</button>
+</section>
+
+<form id="join">
+  <label for="topic">토픽</label>
+  <input id="topic" placeholder="호스트가 알려준 토픽" required autocomplete="off">
+  <button>입장</button>
+</form>
+
+<div id="chat" hidden>
+  <div id="log" aria-live="polite"></div>
+  <form id="send">
+    <label for="msg" hidden>메시지</label>
+    <input id="msg" placeholder="메시지 입력" required autocomplete="off">
+    <button>보내기</button>
+  </form>
+</div>
+
+<script src="/mqtt.min.js"></script>
+<script>
+const $ = (id) => document.getElementById(id)
+const me = Math.random().toString(36).slice(2)
+let client, topic
+
+function add (text, cls) {
+  const p = document.createElement('p')
+  p.textContent = text
+  if (cls) p.className = cls
+  $('log').append(p)
+  $('log').scrollTop = $('log').scrollHeight
+}
+
+// 이 PC에서 열었을 때만 호스트 정보가 옴
+fetch('/host').then((r) => r.ok && r.json()).then((h) => {
+  if (!h) return
+  $('host').hidden = false
+  $('host-topic').textContent = h.topic
+  $('host-addr').textContent = h.addresses.join(', ') || '(네트워크 없음)'
+  $('topic').value = h.topic
+}).catch(() => {})
+
+$('end').onclick = () => {
+  if (confirm('세션을 끝내고 모든 메시지를 지울까요?')) fetch('/host', { method: 'POST' })
+}
+
+$('join').onsubmit = (e) => {
+  e.preventDefault()
+  topic = $('topic').value.trim()
+  client = mqtt.connect(`ws://${location.host}/mqtt`, { reconnectPeriod: 0 })
+  client.on('connect', () => {
+    client.subscribe(topic, (err, granted) => {
+      // 토픽이 틀리면 브로커가 거부(qos 128)
+      if (err || granted[0].qos === 128) {
+        alert('토픽이 맞지 않습니다.')
+        return client.end()
+      }
+      $('join').hidden = true
+      $('chat').hidden = false
+      add('입장했습니다.', 'sys')
+    })
+  })
+  client.on('message', (_, payload) => {
+    let m
+    try { m = JSON.parse(payload) } catch { return }
+    if (m.type === 'session-closed') {
+      $('log').replaceChildren()
+      $('chat').hidden = true
+      document.body.append('세션이 종료되어 모든 내용이 삭제되었습니다.')
+      client.end()
+    } else if (m.type === 'text' && typeof m.text === 'string') {
+      add(m.text, m.from === me ? 'me' : '')
+    }
+  })
+  client.on('close', () => { if (!$('chat').hidden) add('연결이 끊어졌습니다.', 'sys') })
+}
+
+$('send').onsubmit = (e) => {
+  e.preventDefault()
+  client.publish(topic, JSON.stringify({ type: 'text', from: me, text: $('msg').value }))
+  $('msg').value = ''
+}
+</script>
+</body>
+</html>
