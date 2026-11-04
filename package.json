@@ -1,6 +1,6 @@
 {
   "name": "mqtt-webtransport",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "",
   "directories": {
     "doc": "docs"
@@ -11,17 +11,18 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/DaewonGithup/MQTT-Webtransport.git"
+    "url": "git+https://github.com/DaewonGithup/MQTT-WebSocket.git"
   },
   "type": "module",
   "bugs": {
-    "url": "https://github.com/DaewonGithup/MQTT-Webtransport/issues"
+    "url": "https://github.com/DaewonGithup/MQTT-WebSocket/issues"
   },
-  "homepage": "https://github.com/DaewonGithup/MQTT-Webtransport#readme",
+  "homepage": "https://github.com/DaewonGithup/MQTT-WebSocket#readme",
   "private": true,
   "dependencies": {
     "aedes": "^1.2.0",
     "mqtt": "^5.16.1",
+    "qrcode": "^1.5.4",
     "ws": "^8.22.1"
   }
 }

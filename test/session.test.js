@@ -4,12 +4,12 @@ import mqtt from 'mqtt'
 import { startSession } from '../server.js'
 
 // 브라우저처럼 내장 WebSocket 사용 (mqtt.js의 ws 경로는 Node 26에서 연결이 멈춤)
-const connect = (port) => mqtt.connectAsync(`ws://127.0.0.1:${port}/mqtt`, { reconnectPeriod: 0, forceNativeWebSocket: true })
+const connect = (s, pin = s.pin) => mqtt.connectAsync(`ws://127.0.0.1:${s.port}/mqtt`, { reconnectPeriod: 0, forceNativeWebSocket: true, username: 'guest', password: pin })
 
 test('같은 토픽끼리 메시지를 주고받고, 다른 토픽은 거부되며, 종료 시 알림이 간다', async () => {
   const s = await startSession(0)
-  const a = await connect(s.port)
-  const b = await connect(s.port)
+  const a = await connect(s)
+  const b = await connect(s)
 
   await assert.rejects(b.subscribeAsync('room/guess'), (e) => e.packet.granted[0] === 128)
 
