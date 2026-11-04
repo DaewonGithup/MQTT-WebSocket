@@ -13,7 +13,7 @@
     "type": "git",
     "url": "git+https://github.com/DaewonGithup/MQTT-Webtransport.git"
   },
-  "type": "commonjs",
+  "type": "module",
   "bugs": {
     "url": "https://github.com/DaewonGithup/MQTT-Webtransport/issues"
   },
