@@ -25,7 +25,7 @@ Release notes are added here every time an official version is merged into `main
 
 **기타**
 - QR 주소의 토픽을 URL 인코딩 (한글 토픽 대응)
-- README와 업데이트 내역에 영어 설명 추가
+- README, 업데이트 내역, 설계도에 영어 설명 추가
 
 ### English
 
@@ -41,7 +41,7 @@ Release notes are added here every time an official version is merged into `main
 
 **Other**
 - The topic in the QR URL is URL-encoded (supports Korean topics)
-- Added English descriptions to the README and release notes
+- Added English descriptions to the README, release notes and design report
 
 ---
 

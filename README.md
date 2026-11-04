@@ -44,7 +44,7 @@ npm test
 
 ## English
 
-A local MQTT sharing site that lets people on the same Wi-Fi exchange messages and files using only a web browser. See [docs/design.md](docs/design.md) for the design (Korean) and [docs/update.md](docs/update.md) for release notes.
+A local MQTT sharing site that lets people on the same Wi-Fi exchange messages and files using only a web browser. See [docs/design.md](docs/design.md) for the design and [docs/update.md](docs/update.md) for release notes.
 
 ### Run
 
