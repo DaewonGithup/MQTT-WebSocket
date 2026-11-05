@@ -9,6 +9,34 @@ Release notes are added here every time an official version is merged into `main
 
 ---
 
+## v1.2.1 (2026-11-05) · 핫픽스 · Hotfix
+
+### 한국어
+
+**수정**
+- 참여자 접속 주소가 두 개 이상 보이던 문제 수정. Windows 모바일 핫스팟·WSL·VPN 같은 가상 네트워크 주소를 빼고, 인터넷으로 나가는 와이파이(기본 경로) 주소 하나만 표시
+- 같은 와이파이의 다른 기기로 QR을 찍어도 페이지가 열리지 않던 문제 수정. QR이 가상 네트워크 주소를 가리키던 것이 원인이었음
+- 인터넷 연결이 없을 때는 예전처럼 모든 주소를 보여 줌
+- 휴대폰 참여자 화면에 자기 메시지·파일이 보이지 않던 문제 수정. 사진을 고르거나 화면이 꺼지면 휴대폰이 연결을 끊는데, 다시 연결하지 않았던 것이 원인
+  - 끊기면 2초마다 자동 재연결, 화면에 "다시 연결하는 중…" / "다시 연결되었습니다" 표시
+  - 끊긴 동안 온 메시지는 브로커가 모아 뒀다가 다시 연결되면 전달 (QoS 1, 지속 세션)
+- 아이폰 사진(.heic, .heif) 업로드 허용
+- 주소 끝에 `?`로 시작하는 꼬리가 붙어도(QR 앱·메신저) 첫 화면이 열리도록 수정
+
+### English
+
+**Fixes**
+- Fixed more than one participant address being shown. Virtual network addresses such as Windows Mobile Hotspot, WSL or VPN are excluded, and only the Wi-Fi address on the default route is shown
+- Fixed the page not opening when another device on the same Wi-Fi scanned the QR code. The QR code was pointing to a virtual network address
+- Without an internet connection, all addresses are still shown as before
+- Fixed phone participants not seeing their own messages and files. Phones drop the connection while picking a photo or when the screen turns off, and the page never reconnected
+  - Reconnects automatically every 2 seconds and shows "다시 연결하는 중…" (Reconnecting…) / "다시 연결되었습니다" (Reconnected)
+  - Messages sent while disconnected are kept by the broker and delivered on reconnect (QoS 1, persistent session)
+- Allowed iPhone photos (.heic, .heif)
+- The first page now opens even if a `?` query is appended to the address (QR apps, messengers)
+
+---
+
 ## v1.2.0 (2026-11-04)
 
 ### 한국어
