@@ -1,6 +1,7 @@
 import http from 'node:http'
 import fs from 'node:fs'
 import os from 'node:os'
+import dgram from 'node:dgram'
 import fsp from 'node:fs/promises'
 import path from 'node:path'
 import crypto from 'node:crypto'
@@ -98,8 +99,12 @@ export async function startSession (port = 8080, { maxFileBytes = 100 * 1024 * 1
 
   function hostInfo (res) {
     // QR에는 주소와 토픽만 넣고 PIN은 넣지 않음: 화면을 찍은 사진만으로 들어오지 못하게
-    const urls = lanAddresses(session.port).map((a) => `${a}/#t=${encodeURIComponent(topic)}`)
-    return Promise.all(urls.map((u) => QRCode.toString(u, { type: 'svg', margin: 1 })))
+    let urls
+    return lanAddresses(session.port)
+      .then((addrs) => {
+        urls = addrs.map((a) => `${a}/#t=${encodeURIComponent(topic)}`)
+        return Promise.all(urls.map((u) => QRCode.toString(u, { type: 'svg', margin: 1 })))
+      })
       .then((qrs) => {
         res.setHeader('Content-Type', 'application/json')
         res.end(JSON.stringify({ topic, pin, joins: urls.map((url, i) => ({ url, qr: qrs[i] })) }))
@@ -222,18 +227,30 @@ export async function startSession (port = 8080, { maxFileBytes = 100 * 1024 * 1
   return session
 }
 
-function lanAddresses (port) {
-  return Object.values(os.networkInterfaces()).flat()
+// 참여자 접속 주소: 인터넷으로 나가는 기본 경로의 내 IP 하나만 고름.
+// 핫스팟·WSL·VPN 같은 가상 어댑터 주소는 다른 기기가 못 찾아와서 QR이 안 열리기 때문.
+// UDP connect는 패킷을 보내지 않고 경로만 정함. 경로가 없으면(오프라인) 모든 주소를 보여 줌.
+export function lanAddresses (port) {
+  const all = Object.values(os.networkInterfaces()).flat()
     .filter((a) => a.family === 'IPv4' && !a.internal)
-    .map((a) => `http://${a.address}:${port}`)
+    .map((a) => a.address)
+  return new Promise((resolve) => {
+    const sock = dgram.createSocket('udp4')
+    sock.on('error', () => { sock.close(); resolve(all) })
+    sock.connect(53, '8.8.8.8', () => {
+      const ip = sock.address().address
+      sock.close()
+      resolve(all.includes(ip) ? [ip] : all)
+    })
+  }).then((ips) => ips.map((ip) => `http://${ip}:${port}`))
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const session = await startSession(Number(process.env.PORT) || 8080, { topic: process.env.TOPIC || undefined })
   console.log(`세션 토픽: ${session.topic}`)
   console.log(`PIN: ${session.pin}`)
   console.log(`호스트 화면: http://localhost:${session.port}`)
-  for (const a of lanAddresses(session.port)) console.log(`참여자 접속 주소: ${a}`)
+  for (const a of await lanAddresses(session.port)) console.log(`참여자 접속 주소: ${a}`)
   session.server.on('session-closed', () => {
     console.log('세션 종료: 메시지와 토픽을 모두 지웠습니다.')
     process.exit(0)
