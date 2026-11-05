@@ -110,7 +110,7 @@
   </form>
   <form id="upload" class="row">
     <label for="file" hidden>파일</label>
-    <input id="file" type="file" required accept=".png,.jpg,.jpeg,.gif,.webp,.pdf,.txt,.zip,.docx,.xlsx,.pptx,.hwp">
+    <input id="file" type="file" required accept=".png,.jpg,.jpeg,.heic,.heif,.gif,.webp,.pdf,.txt,.zip,.docx,.xlsx,.pptx,.hwp">
     <button>파일 보내기</button>
   </form>
   <progress id="progress" max="1" value="0" hidden></progress>
@@ -202,19 +202,28 @@ $('join').onsubmit = (e) => {
   e.preventDefault()
   topic = $('topic').value.trim()
   pin = $('pin').value.trim()
-  client = mqtt.connect(`ws://${location.host}/mqtt`, { reconnectPeriod: 0, username: 'guest', password: pin })
-  // PIN이 틀리거나 잠기면 브로커가 연결을 거부함
-  client.on('error', () => {
+  client?.end(true) // 입장을 다시 누르면 이전 연결은 정리
+  // 휴대폰은 사진 고르기·화면 꺼짐 때 연결을 끊으므로 자동 재연결.
+  // clean: false + qos 1: 끊긴 동안 온 메시지를 브로커가 모아 뒀다가 다시 연결되면 전달
+  client = mqtt.connect(`ws://${location.host}/mqtt`, {
+    reconnectPeriod: 2000, clean: false, clientId: 'web-' + me, username: 'guest', password: pin
+  })
+  let joined = false
+  // PIN이 틀리거나 잠기면 브로커가 연결을 거부함(CONNACK 4·5). 네트워크 오류는 재연결에 맡김
+  client.on('error', (err) => {
+    if (err.code !== 4 && err.code !== 5) return
     alert('PIN이 맞지 않습니다. 5번 틀리면 1분 동안 입장할 수 없습니다.')
-    client.end()
+    client.end(true)
   })
   client.on('connect', () => {
-    client.subscribe(topic, (err, granted) => {
+    if (joined) return add('다시 연결되었습니다.', 'sys')
+    client.subscribe(topic, { qos: 1 }, (err, granted) => {
       // 토픽이 틀리면 브로커가 거부(qos 128)
       if (err || granted[0].qos === 128) {
         alert('토픽이 맞지 않습니다.')
         return client.end()
       }
+      joined = true
       $('join').hidden = true
       $('chat').hidden = false
       add('입장했습니다.', 'sys')
@@ -246,12 +255,12 @@ $('join').onsubmit = (e) => {
       if (p) p.textContent = p.textContent + ' (만료되어 삭제됨)'
     }
   })
-  client.on('close', () => { if (!$('chat').hidden) add('연결이 끊어졌습니다.', 'sys') })
+  client.on('offline', () => { if (!$('chat').hidden) add('연결이 끊어졌습니다. 다시 연결하는 중…', 'sys') })
 }
 
 $('send').onsubmit = (e) => {
   e.preventDefault()
-  client.publish(topic, JSON.stringify({ type: 'text', from: me, text: $('msg').value }))
+  client.publish(topic, JSON.stringify({ type: 'text', from: me, text: $('msg').value }), { qos: 1 })
   $('msg').value = ''
 }
 

@@ -43,3 +43,21 @@ test('세션 종료 요청은 입장한 사람이 있어도 ok 응답을 받은 
   await new Promise((resolve) => s.server.once('session-closed', resolve))
   a.end(true)
 })
+
+test('휴대폰처럼 잠깐 끊겼다 다시 연결하면, 끊긴 동안 온 메시지를 받는다', async () => {
+  const s = await startSession(0)
+  const opts = { reconnectPeriod: 0, forceNativeWebSocket: true, username: 'guest', password: s.pin, clean: false, clientId: 'web-phone1' }
+  const url = `ws://127.0.0.1:${s.port}/mqtt`
+  const phone = await mqtt.connectAsync(url, opts)
+  await phone.subscribeAsync(s.topic, { qos: 1 })
+  await phone.endAsync() // 사진 고르러 간 사이 연결 끊김
+
+  const host = await connect(s)
+  await host.publishAsync(s.topic, JSON.stringify({ type: 'text', text: '끊긴 동안 보낸 말' }), { qos: 1 })
+
+  const back = await mqtt.connectAsync(url, opts) // 같은 clientId로 다시 연결
+  const got = await new Promise((resolve) => back.once('message', (_, p) => resolve(JSON.parse(p))))
+  assert.strictEqual(got.text, '끊긴 동안 보낸 말')
+  back.end(true); host.end(true)
+  await s.close()
+})

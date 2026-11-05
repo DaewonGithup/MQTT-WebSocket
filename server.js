@@ -15,7 +15,7 @@ import QRCode from 'qrcode'
 const MQTT_JS = fs.readFileSync(new URL('./node_modules/mqtt/dist/mqtt.min.js', import.meta.url))
 const INDEX = fs.readFileSync(new URL('./public/index.html', import.meta.url))
 
-const ALLOWED_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.pdf', '.txt', '.zip', '.docx', '.xlsx', '.pptx', '.hwp'])
+const ALLOWED_EXT = new Set(['.png', '.jpg', '.jpeg', '.heic', '.heif', '.gif', '.webp', '.pdf', '.txt', '.zip', '.docx', '.xlsx', '.pptx', '.hwp'])
 
 // 호스트가 정하는 토픽: MQTT 와일드카드(+, #)와 / 를 막기 위해 허용 문자만
 const TOPIC_RE = /^[\w가-힣-]{3,40}$/u
@@ -71,7 +71,8 @@ export async function startSession (port = 8080, { maxFileBytes = 100 * 1024 * 1
 
   const server = http.createServer((req, res) => {
     res.setHeader('Cache-Control', 'no-store')
-    if (req.method === 'GET' && req.url === '/') {
+    // QR 앱·메신저가 붙이는 ?꼬리가 있어도 첫 화면을 보여 줌
+    if (req.method === 'GET' && (req.url === '/' || req.url.startsWith('/?'))) {
       res.setHeader('Content-Type', 'text/html; charset=utf-8')
       return res.end(INDEX)
     }
@@ -95,7 +96,7 @@ export async function startSession (port = 8080, { maxFileBytes = 100 * 1024 * 1
     res.end()
   })
 
-  const notify = (msg) => broker.publish({ topic, payload: JSON.stringify(msg), qos: 0, retain: false }, () => {})
+  const notify = (msg) => broker.publish({ topic, payload: JSON.stringify(msg), qos: 1, retain: false }, () => {})
 
   function hostInfo (res) {
     // QR에는 주소와 토픽만 넣고 PIN은 넣지 않음: 화면을 찍은 사진만으로 들어오지 못하게
@@ -133,7 +134,7 @@ export async function startSession (port = 8080, { maxFileBytes = 100 * 1024 * 1
     if (next !== topic) {
       const old = topic
       topic = next
-      await new Promise((resolve) => broker.publish({ topic: old, payload: JSON.stringify({ type: 'topic-changed' }), qos: 0, retain: false }, resolve))
+      await new Promise((resolve) => broker.publish({ topic: old, payload: JSON.stringify({ type: 'topic-changed' }), qos: 1, retain: false }, resolve))
       for (const ws of wss.clients) ws.close()
     }
     hostInfo(res)
@@ -210,7 +211,7 @@ export async function startSession (port = 8080, { maxFileBytes = 100 * 1024 * 1
       if (closed) return
       closed = true
       // 참여자 화면을 비우라고 알린 뒤 모두 끊음
-      await new Promise((resolve) => broker.publish({ topic, payload: JSON.stringify({ type: 'session-closed' }), qos: 0, retain: false }, resolve))
+      await new Promise((resolve) => broker.publish({ topic, payload: JSON.stringify({ type: 'session-closed' }), qos: 1, retain: false }, resolve))
       for (const ws of wss.clients) ws.terminate()
       await new Promise((resolve) => broker.close(resolve))
       const closing = new Promise((resolve) => server.close(resolve))
