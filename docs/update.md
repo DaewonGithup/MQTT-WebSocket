@@ -9,6 +9,24 @@ Release notes are added here every time an official version is merged into `main
 
 ---
 
+## v1.2.1 (2026-11-05) · 핫픽스 · Hotfix
+
+### 한국어
+
+**수정**
+- 참여자 접속 주소가 두 개 이상 보이던 문제 수정. Windows 모바일 핫스팟·WSL·VPN 같은 가상 네트워크 주소를 빼고, 인터넷으로 나가는 와이파이(기본 경로) 주소 하나만 표시
+- 같은 와이파이의 다른 기기로 QR을 찍어도 페이지가 열리지 않던 문제 수정. QR이 가상 네트워크 주소를 가리키던 것이 원인이었음
+- 인터넷 연결이 없을 때는 예전처럼 모든 주소를 보여 줌
+
+### English
+
+**Fixes**
+- Fixed more than one participant address being shown. Virtual network addresses such as Windows Mobile Hotspot, WSL or VPN are excluded, and only the Wi-Fi address on the default route is shown
+- Fixed the page not opening when another device on the same Wi-Fi scanned the QR code. The QR code was pointing to a virtual network address
+- Without an internet connection, all addresses are still shown as before
+
+---
+
 ## v1.2.0 (2026-11-04)
 
 ### 한국어
