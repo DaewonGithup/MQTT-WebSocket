@@ -9,6 +9,34 @@ Release notes are added here every time an official version is merged into `main
 
 ---
 
+## v1.2.2 (2026-11-07)
+
+### 한국어
+
+**보안**
+- 참여자가 "세션 종료"·"파일 도착" 같은 가짜 시스템 알림을 보내지 못하게 막음. 참여자는 글(`type: text`)만 보낼 수 있고, 시스템 알림은 서버만 보냄
+- 다른 사람인 척하지 못하게 막음. 보낸 사람 id(`from`)를 화면이 아닌 서버가 정함
+  - 서버가 각 참여자의 비밀 clientId로 id를 만들어 글과 파일 알림에 붙임
+  - 입장하면 서버가 그 사람에게만 자기 id를 알려 줌(`hello`)
+  - 파일 업로드 헤더가 `X-From`에서 `X-Client-Id`로 바뀜
+
+**기타**
+- 서버와 화면이 함께 바뀌었으므로, 업데이트 후 서버를 다시 켜고 페이지를 새로고침해야 함
+
+### English
+
+**Security**
+- Participants can no longer send fake system notices such as "session closed" or "file arrived". Participants may only send text (`type: text`); system notices come from the server only
+- Participants can no longer pretend to be someone else. The sender id (`from`) is now set by the server, not the page
+  - The server derives each participant's id from their secret clientId and attaches it to text and file notices
+  - On joining, the server tells each participant their own id (`hello`)
+  - The upload header changed from `X-From` to `X-Client-Id`
+
+**Other**
+- Both the server and the page changed, so restart the server and reload the page after updating
+
+---
+
 ## v1.2.1 (2026-11-05) · 핫픽스 · Hotfix
 
 ### 한국어
