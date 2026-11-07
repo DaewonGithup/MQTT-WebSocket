@@ -37,6 +37,9 @@ export async function startSession (port = 8080, { maxFileBytes = 100 * 1024 * 1
   // 6자리 PIN: 토픽을 알아도 PIN이 없으면 못 들어옴
   const pin = String(crypto.randomInt(0, 1e6)).padStart(6, '0')
   const failures = new Map() // ip -> { count, until }
+  // 보낸 사람 표시 id는 서버가 만듦: 비밀인 clientId에서 뽑아서, 남의 id를 흉내 낼 수 없게
+  const idKey = crypto.randomBytes(16)
+  const senderId = (clientId) => crypto.createHmac('sha256', idKey).update(clientId).digest('hex').slice(0, 12)
 
   // PIN을 5번 틀린 IP는 1분 동안 맞는 PIN도 거부 (마구 넣어 보기 방지)
   function checkPin (ip, given) {
@@ -64,9 +67,20 @@ export async function startSession (port = 8080, { maxFileBytes = 100 * 1024 * 1
     },
     authorizePublish (client, packet, cb) {
       if (packet.topic !== topic) return cb(new Error('topic denied'))
+      // 참여자는 글만 보낼 수 있음. session-closed·file 같은 알림은 서버만 보냄
+      let m
+      try { m = JSON.parse(packet.payload) } catch {}
+      if (m?.type !== 'text' || typeof m.text !== 'string') return cb(new Error('only text'))
+      // 참여자가 적은 from은 버리고 서버가 확인한 id로 다시 씀
+      packet.payload = Buffer.from(JSON.stringify({ type: 'text', from: senderId(client.id), text: m.text }))
       packet.retain = false // 종료 후 남는 메시지가 없게
       cb(null)
     }
+  })
+
+  // 입장한 사람에게만 자기 id를 알려 줌: 화면에서 내 글을 오른쪽에 그리는 데 씀
+  broker.on('subscribe', (subs, client) => {
+    if (subs.some((sub) => sub.topic === topic)) client.publish({ topic, payload: JSON.stringify({ type: 'hello', you: senderId(client.id) }), qos: 0 }, () => {})
   })
 
   const server = http.createServer((req, res) => {
@@ -169,8 +183,9 @@ export async function startSession (port = 8080, { maxFileBytes = 100 * 1024 * 1
 
     const timer = setTimeout(() => removeFile(id), fileTtlMs)
     files.set(id, { name, size, timer })
-    // 보낸 사람 표시용 id. 화면에서 내 파일을 오른쪽에 그리는 데만 씀
-    const from = /^[a-z0-9]{1,16}$/.test(req.headers['x-from'] ?? '') ? req.headers['x-from'] : undefined
+    // 글과 같은 방식: 비밀인 clientId를 받아 서버가 보낸 사람 id를 만듦
+    const cid = req.headers['x-client-id']
+    const from = cid ? senderId(cid) : undefined
     notify({ type: 'file', id, name, size, from, expiresAt: Date.now() + fileTtlMs })
     res.setHeader('Content-Type', 'application/json')
     res.end(JSON.stringify({ id }))

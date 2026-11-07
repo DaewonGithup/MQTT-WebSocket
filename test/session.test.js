@@ -16,15 +16,54 @@ test('같은 토픽끼리 메시지를 주고받고, 다른 토픽은 거부되�
   await a.subscribeAsync(s.topic)
   await b.subscribeAsync(s.topic)
   const got = []
-  a.on('message', (_, p) => got.push(JSON.parse(p)))
+  a.on('message', (_, p) => { const m = JSON.parse(p); if (m.type !== 'hello') got.push(m) }) // hello: 입장 시 서버가 주는 내 id
 
   await b.publishAsync(s.topic, JSON.stringify({ type: 'text', text: '안녕' }))
   await new Promise((r) => setTimeout(r, 100))
-  assert.deepStrictEqual(got[0], { type: 'text', text: '안녕' })
+  assert.strictEqual(got[0].type, 'text')
+  assert.strictEqual(got[0].text, '안녕')
 
   await s.close()
   assert.strictEqual(got.at(-1).type, 'session-closed')
   a.end(true); b.end(true)
+})
+
+test('참여자가 보낸 가짜 시스템 알림(세션 종료·파일)은 다른 사람에게 가지 않는다', async () => {
+  const s = await startSession(0)
+  const a = await connect(s)
+  const bad = await connect(s)
+  await a.subscribeAsync(s.topic)
+  const got = []
+  a.on('message', (_, p) => { const m = JSON.parse(p); if (m.type !== 'hello') got.push(m) }) // hello: 입장 시 서버가 주는 내 id
+
+  bad.on('error', () => {}) // 브로커가 끊어 버림
+  bad.publish(s.topic, JSON.stringify({ type: 'session-closed' }), { qos: 1 })
+  const bad2 = await connect(s)
+  bad2.on('error', () => {})
+  bad2.publish(s.topic, JSON.stringify({ type: 'file', id: 'a'.repeat(32), name: 'x.exe' }), { qos: 1 })
+  const ok = await connect(s)
+  await ok.publishAsync(s.topic, JSON.stringify({ type: 'text', text: '진짜' }))
+  await new Promise((r) => setTimeout(r, 100))
+
+  assert.deepStrictEqual(got.map((m) => `${m.type}:${m.text}`), ['text:진짜'])
+  a.end(true); bad.end(true); bad2.end(true); ok.end(true)
+  await s.close()
+})
+
+test('보낸 사람 id는 서버가 정해서, 남의 id를 적어 보내도 흉내 낼 수 없다', async () => {
+  const s = await startSession(0)
+  const hello = (c) => new Promise((resolve) => c.on('message', (_, p) => { const m = JSON.parse(p); if (m.type === 'hello') resolve(m.you) }))
+  const a = await connect(s)
+  const b = await connect(s)
+  const [aId, bId] = await Promise.all([hello(a), hello(b), a.subscribeAsync(s.topic), b.subscribeAsync(s.topic)])
+  assert.match(aId, /^[0-9a-f]{12}$/)
+  assert.notStrictEqual(aId, bId)
+
+  const got = new Promise((resolve) => a.on('message', (_, p) => { const m = JSON.parse(p); if (m.type === 'text') resolve(m) }))
+  await b.publishAsync(s.topic, JSON.stringify({ type: 'text', from: aId, text: '나 a야' }))
+  assert.strictEqual((await got).from, bId) // a의 id를 적었지만 b로 표시됨
+  a.end(true); b.end(true)
+  await s.close()
 })
 
 test('이 PC에서 연 호스트 화면은 토픽을 받는다', async () => {
