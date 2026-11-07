@@ -64,6 +64,10 @@ export async function startSession (port = 8080, { maxFileBytes = 100 * 1024 * 1
     },
     authorizePublish (client, packet, cb) {
       if (packet.topic !== topic) return cb(new Error('topic denied'))
+      // 참여자는 글만 보낼 수 있음. session-closed·file 같은 알림은 서버만 보냄
+      let m
+      try { m = JSON.parse(packet.payload) } catch {}
+      if (m?.type !== 'text' || typeof m.text !== 'string') return cb(new Error('only text'))
       packet.retain = false // 종료 후 남는 메시지가 없게
       cb(null)
     }
