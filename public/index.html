@@ -127,7 +127,7 @@
 <script>
 const $ = (id) => document.getElementById(id)
 const me = Math.random().toString(36).slice(2)
-let client, topic, pin
+let client, topic, pin, myId // myId: 서버가 알려 준 내 표시 id
 
 // QR로 들어오면 주소 끝(#t=토픽)에서 토픽을 미리 채움
 const fromQr = new URLSearchParams(location.hash.slice(1)).get('t')
@@ -232,17 +232,19 @@ $('join').onsubmit = (e) => {
   client.on('message', (_, payload) => {
     let m
     try { m = JSON.parse(payload) } catch { return }
-    if (m.type === 'session-closed') {
+    if (m.type === 'hello') {
+      myId = m.you
+    } else if (m.type === 'session-closed') {
       sessionClosed()
     } else if (m.type === 'topic-changed') {
       topicChanged()
     } else if (m.type === 'text' && typeof m.text === 'string') {
-      add(m.text, m.from === me ? 'me' : '')
+      add(m.text, m.from === myId ? 'me' : '')
     } else if (m.type === 'file' && /^[0-9a-f]{32}$/.test(m.id)) {
       // 주소는 id로만 만듦: 남이 보낸 가짜 링크(외부 주소 등)를 막기 위해
       const p = document.createElement('p')
       p.id = 'f-' + m.id
-      p.className = m.from === me ? 'msg me' : 'msg'
+      p.className = m.from === myId ? 'msg me' : 'msg'
       const a = document.createElement('a')
       a.href = '/files/' + m.id
       a.download = ''
@@ -260,7 +262,7 @@ $('join').onsubmit = (e) => {
 
 $('send').onsubmit = (e) => {
   e.preventDefault()
-  client.publish(topic, JSON.stringify({ type: 'text', from: me, text: $('msg').value }), { qos: 1 })
+  client.publish(topic, JSON.stringify({ type: 'text', text: $('msg').value }), { qos: 1 })
   $('msg').value = ''
 }
 
@@ -272,7 +274,7 @@ $('upload').onsubmit = (e) => {
   xhr.open('POST', '/files')
   xhr.setRequestHeader('X-Topic', topic)
   xhr.setRequestHeader('X-Pin', pin)
-  xhr.setRequestHeader('X-From', me)
+  xhr.setRequestHeader('X-Client-Id', 'web-' + me)
   xhr.setRequestHeader('X-Filename', encodeURIComponent(file.name))
   $('progress').hidden = false
   xhr.upload.onprogress = (ev) => { if (ev.lengthComputable) $('progress').value = ev.loaded / ev.total }
