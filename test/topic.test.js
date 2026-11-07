@@ -19,7 +19,7 @@ test('호스트가 토픽을 바꾸면 참여자에게 알리고 끊으며, 새 
   const a = await connect(s)
   await a.subscribeAsync(old)
   const got = []
-  a.on('message', (_, p) => got.push(JSON.parse(p)))
+  a.on('message', (_, p) => { const m = JSON.parse(p); if (m.type !== 'hello') got.push(m) }) // hello: 입장 시 서버가 주는 내 id
   const closed = new Promise((resolve) => a.once('close', resolve))
 
   const r = await setTopic(s, 'study_room')

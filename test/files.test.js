@@ -20,7 +20,7 @@ test('파일을 올리면 MQTT로 알림이 가고, 내려받을 수 있다', as
   const c = await connect(s)
   await c.subscribeAsync(s.topic)
   const got = []
-  c.on('message', (_, p) => got.push(JSON.parse(p)))
+  c.on('message', (_, p) => { const m = JSON.parse(p); if (m.type !== 'hello') got.push(m) }) // hello: 입장 시 서버가 주는 내 id
 
   const r = await upload(s, '사진.png', 'hello')
   assert.strictEqual(r.status, 200)
@@ -63,21 +63,22 @@ test('만료 시간이 지나면 파일이 지워지고, 세션 종료 시 폴�
   assert.strictEqual(fs.existsSync(s.dir), false)
 })
 
-test('파일 알림에 보낸 사람 id가 담기고, 이상한 값은 버린다', async () => {
+test('파일 알림의 보낸 사람 id는 글과 같은 서버 id이고, 없으면 비운다', async () => {
   const s = await startSession(0)
-  const c = await connect(s)
-  await c.subscribeAsync(s.topic)
+  const c = await mqtt.connectAsync(`ws://127.0.0.1:${s.port}/mqtt`, { reconnectPeriod: 0, forceNativeWebSocket: true, username: 'guest', password: s.pin, clientId: 'web-abc123' })
   const got = []
-  c.on('message', (_, p) => got.push(JSON.parse(p)))
-  const send = (from) => fetch(`http://127.0.0.1:${s.port}/files`, {
+  let myId
+  c.on('message', (_, p) => { const m = JSON.parse(p); if (m.type === 'hello') myId = m.you; else got.push(m) })
+  await c.subscribeAsync(s.topic)
+  const send = (headers) => fetch(`http://127.0.0.1:${s.port}/files`, {
     method: 'POST',
-    headers: { 'X-Topic': s.topic, 'X-Pin': s.pin, 'X-From': from, 'X-Filename': 'a.txt' },
+    headers: { 'X-Topic': s.topic, 'X-Pin': s.pin, 'X-Filename': 'a.txt', ...headers },
     body: 'x'
   })
-  await send('abc123')
-  await send('<script>')
+  await send({ 'X-Client-Id': 'web-abc123' })
+  await send({})
   await wait(100)
-  assert.strictEqual(got[0].from, 'abc123')
+  assert.strictEqual(got[0].from, myId)
   assert.strictEqual(got[1].from, undefined)
   c.end(true)
   await s.close()
