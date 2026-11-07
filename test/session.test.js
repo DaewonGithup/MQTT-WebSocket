@@ -27,6 +27,28 @@ test('같은 토픽끼리 메시지를 주고받고, 다른 토픽은 거부되�
   a.end(true); b.end(true)
 })
 
+test('참여자가 보낸 가짜 시스템 알림(세션 종료·파일)은 다른 사람에게 가지 않는다', async () => {
+  const s = await startSession(0)
+  const a = await connect(s)
+  const bad = await connect(s)
+  await a.subscribeAsync(s.topic)
+  const got = []
+  a.on('message', (_, p) => got.push(JSON.parse(p)))
+
+  bad.on('error', () => {}) // 브로커가 끊어 버림
+  bad.publish(s.topic, JSON.stringify({ type: 'session-closed' }), { qos: 1 })
+  const bad2 = await connect(s)
+  bad2.on('error', () => {})
+  bad2.publish(s.topic, JSON.stringify({ type: 'file', id: 'a'.repeat(32), name: 'x.exe' }), { qos: 1 })
+  const ok = await connect(s)
+  await ok.publishAsync(s.topic, JSON.stringify({ type: 'text', text: '진짜' }))
+  await new Promise((r) => setTimeout(r, 100))
+
+  assert.deepStrictEqual(got, [{ type: 'text', text: '진짜' }])
+  a.end(true); bad.end(true); bad2.end(true); ok.end(true)
+  await s.close()
+})
+
 test('이 PC에서 연 호스트 화면은 토픽을 받는다', async () => {
   const s = await startSession(0)
   const r = await fetch(`http://127.0.0.1:${s.port}/host`)
