@@ -36,6 +36,12 @@ test('파일을 올리면 MQTT로 알림이 가고, 내려받을 수 있다', as
   await s.close()
 })
 
+test('동영상(mp4)도 올릴 수 있다 (대문자 확장자 포함)', async () => {
+  const s = await startSession(0)
+  assert.strictEqual((await upload(s, '영상.MP4', 'x')).status, 200)
+  await s.close()
+})
+
 test('토픽이 틀리거나, 형식이 안 맞거나, 너무 크면 거부한다', async () => {
   const s = await startSession(0, { maxFileBytes: 10 })
   assert.strictEqual((await upload(s, 'a.png', 'x', 'room/guess')).status, 403)
