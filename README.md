@@ -4,7 +4,7 @@
 
 ## 한국어
 
-같은 와이파이에 있는 사람끼리 브라우저만으로 메시지를 주고받는 로컬 MQTT 공유 사이트입니다. 설계는 [docs/design.md](docs/design.md), 버전별 변경 내용은 [docs/update.md](docs/update.md)를 보세요.
+같은 와이파이에 있는 사람끼리 브라우저만으로 메시지와 파일(jpg, mp4, pdf 등)을 임시로 주고받고 세션종료시 올라왔던 모든 메세지, 파일들을 제거하는, 기기간 데이터 전송이 목적인 로컬 MQTT 공유 사이트입니다. 설계는 [docs/design.md](docs/design.md), 버전별 변경 내용은 [docs/update.md](docs/update.md)를 보세요.
 
 ### 실행
 
@@ -16,7 +16,7 @@ npm start
 1. 호스트 PC 브라우저에서 `http://localhost:8080`을 엽니다. 토픽, PIN, 접속 QR 코드가 보입니다.
 2. 참여자는 같은 와이파이에서 QR을 찍거나 접속 주소로 들어가 토픽과 PIN을 입력합니다. PIN을 5번 틀리면 1분 동안 입장할 수 없습니다.
 3. 호스트는 화면의 "토픽 변경"으로 원하는 토픽(한글·영문·숫자·-·_ 3~40자)을 정할 수 있습니다. 바꾸면 입장한 사람은 새 토픽으로 다시 들어와야 합니다. 처음부터 정하려면 `TOPIC=우리반 npm start`(macOS·Linux) 또는 `$env:TOPIC="우리반"; npm start`(Windows PowerShell)처럼 실행합니다.
-4. "파일 보내기"로 파일을 올리면 모두에게 내려받기 링크가 보입니다. 파일은 100MB까지, 이미지·PDF·문서·zip 형식만 되며 30분 뒤 자동으로 지워집니다.
+4. "파일 보내기"로 파일을 올리면 모두에게 내려받기 링크가 보입니다. 파일은 100MB까지, 이미지·동영상(mp4)·PDF·문서·zip 형식만 되며 30분 뒤 자동으로 지워집니다.
 5. "세션 종료"를 누르거나 터미널에서 Ctrl+C를 누르면 세션이 끝나고 내용이 모두 사라집니다.
 
 > Windows PowerShell에서 `npm`이 실행 정책 때문에 막히면 `npm.cmd`를 쓰세요.
@@ -44,7 +44,7 @@ npm test
 
 ## English
 
-A local MQTT sharing site that lets people on the same Wi-Fi exchange messages and files using only a web browser. See [docs/design.md](docs/design.md) for the design and [docs/update.md](docs/update.md) for release notes.
+A local MQTT sharing site for moving data between devices: people on the same Wi-Fi temporarily exchange messages and files (jpg, mp4, pdf, etc.) using only a web browser, and every message and file is removed when the session ends. See [docs/design.md](docs/design.md) for the design and [docs/update.md](docs/update.md) for release notes.
 
 ### Run
 
@@ -56,7 +56,7 @@ npm start
 1. On the host PC, open `http://localhost:8080`. The topic, PIN, and join QR codes are shown.
 2. Participants on the same Wi-Fi scan the QR code or open the join address, then enter the topic and PIN. After 5 wrong PINs, that device is blocked for 1 minute.
 3. The host can set a custom topic (Korean/English letters, digits, `-`, `_`, 3–40 chars) with "토픽 변경" (Change topic). Everyone who already joined must rejoin with the new topic. To set it at startup, run `TOPIC=myroom npm start` (macOS/Linux) or `$env:TOPIC="myroom"; npm start` (Windows PowerShell).
-4. Upload a file with "파일 보내기" (Send file) and everyone gets a download link. Files up to 100 MB; only images, PDF, documents and zip are allowed; files are deleted automatically after 30 minutes.
+4. Upload a file with "파일 보내기" (Send file) and everyone gets a download link. Files up to 100 MB; only images, video (mp4), PDF, documents and zip are allowed; files are deleted automatically after 30 minutes.
 5. Press "세션 종료" (End session) or Ctrl+C in the terminal to end the session and delete everything.
 
 > On Windows PowerShell, if `npm` is blocked by the execution policy, use `npm.cmd` instead.
