@@ -15,7 +15,7 @@ import QRCode from 'qrcode'
 const MQTT_JS = fs.readFileSync(new URL('./node_modules/mqtt/dist/mqtt.min.js', import.meta.url))
 const INDEX = fs.readFileSync(new URL('./public/index.html', import.meta.url))
 
-const ALLOWED_EXT = new Set(['.png', '.jpg', '.jpeg', '.heic', '.heif', '.gif', '.webp', '.pdf', '.txt', '.zip', '.docx', '.xlsx', '.pptx', '.hwp'])
+const ALLOWED_EXT = new Set(['.png', '.jpg', '.jpeg', '.heic', '.heif', '.gif', '.webp', '.mp4', '.pdf', '.txt', '.zip', '.docx', '.xlsx', '.pptx', '.hwp'])
 
 // 호스트가 정하는 토픽: MQTT 와일드카드(+, #)와 / 를 막기 위해 허용 문자만
 const TOPIC_RE = /^[\w가-힣-]{3,40}$/u

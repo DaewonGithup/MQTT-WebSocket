@@ -9,6 +9,22 @@ Release notes are added here every time an official version is merged into `main
 
 ---
 
+## v1.3.0 (2026-11-09)
+
+### 한국어
+
+**기능**
+- 동영상(mp4) 파일 전송 지원. 파일 고르기 창에서 mp4를 고를 수 있고, 확장자가 대문자(`.MP4`)여도 됨
+- 크기 제한은 기존과 같은 100MB
+
+### English
+
+**Features**
+- Added video (mp4) file transfer. mp4 files can be picked in the file chooser, including upper-case extensions (`.MP4`)
+- The size limit stays at 100 MB
+
+---
+
 ## v1.2.2 (2026-11-07)
 
 ### 한국어
