@@ -41,8 +41,11 @@ export async function startSession (port = 8080, { maxFileBytes = 100 * 1024 * 1
   const idKey = crypto.randomBytes(16)
   const senderId = (clientId) => crypto.createHmac('sha256', idKey).update(clientId).digest('hex').slice(0, 12)
 
+  let pinOn = true // 호스트가 끄면 PIN 없이 누구나 입장·업로드 가능
+
   // PIN을 5번 틀린 IP는 1분 동안 맞는 PIN도 거부 (마구 넣어 보기 방지)
   function checkPin (ip, given) {
+    if (!pinOn) return true
     const f = failures.get(ip)
     if (f?.until > Date.now()) return false
     const a = Buffer.from(String(given))
@@ -99,6 +102,11 @@ export async function startSession (port = 8080, { maxFileBytes = 100 * 1024 * 1
     if (fileId) return download(fileId, res)
     // 호스트(이 PC에서 연 브라우저)만 토픽을 보고 세션을 끝낼 수 있음
     if (req.url === '/host/topic' && req.method === 'POST' && isLocal(req)) return changeTopic(req, res)
+    const pinSwitch = req.method === 'POST' && isLocal(req) && req.url.match(/^\/host\/pin\/(on|off)$/)?.[1]
+    if (pinSwitch) {
+      pinOn = pinSwitch === 'on'
+      return hostInfo(res)
+    }
     if (req.url === '/host' && isLocal(req)) {
       if (req.method === 'GET') return hostInfo(res)
       if (req.method === 'POST') {
@@ -122,7 +130,7 @@ export async function startSession (port = 8080, { maxFileBytes = 100 * 1024 * 1
       })
       .then((qrs) => {
         res.setHeader('Content-Type', 'application/json')
-        res.end(JSON.stringify({ topic, pin, joins: urls.map((url, i) => ({ url, qr: qrs[i] })) }))
+        res.end(JSON.stringify({ topic, pin, pinOn, joins: urls.map((url, i) => ({ url, qr: qrs[i] })) }))
       })
       .catch(() => { res.statusCode = 500; res.end() })
   }

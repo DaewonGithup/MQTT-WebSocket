@@ -29,6 +29,8 @@
   .badge { display: inline-block; font-size: .75rem; padding: 2px 8px; border-radius: 999px; background: var(--primary); color: var(--primary-text); margin-left: 6px; vertical-align: middle; }
   .info { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; margin: 0 0 16px; }
   .info dt { color: var(--muted); }
+  .switch { display: flex; align-items: center; gap: 8px; margin: 0 0 16px; cursor: pointer; }
+  .switch input { width: 20px; height: 20px; accent-color: var(--primary); }
   .info dd { margin: 0; font-family: ui-monospace, Consolas, monospace; word-break: break-all; }
   #host-pin { font-size: 1.6rem; letter-spacing: .3em; font-weight: 700; color: var(--primary); }
   .hint { font-size: .8rem; color: var(--muted); margin: 6px 0 16px; }
@@ -78,6 +80,7 @@
     <dt>토픽</dt><dd id="host-topic"></dd>
     <dt>PIN</dt><dd id="host-pin"></dd>
   </dl>
+  <label class="switch"><input type="checkbox" id="pin-on" checked> PIN 사용 (입장할 때 PIN 요구)</label>
   <form id="topic-form" class="row">
     <label for="new-topic" hidden>새 토픽</label>
     <input id="new-topic" placeholder="원하는 토픽 (한글·영문·숫자·-·_ 3~40자)" required autocomplete="off" pattern="[\w가-힣\-]{3,40}" maxlength="40">
@@ -96,7 +99,7 @@
   </div>
   <div class="field">
     <label for="pin">PIN</label>
-    <input id="pin" placeholder="6자리 숫자" required autocomplete="off" inputmode="numeric" pattern="\d{6}" maxlength="6">
+    <input id="pin" placeholder="6자리 숫자 (PIN이 없는 방은 비워 두세요)" autocomplete="off" inputmode="numeric" pattern="\d{6}" maxlength="6">
   </div>
   <button>입장</button>
 </form>
@@ -144,7 +147,8 @@ function add (text, cls) {
 function renderHost (h) {
   $('host').hidden = false
   $('host-topic').textContent = h.topic
-  $('host-pin').textContent = h.pin
+  $('host-pin').textContent = h.pinOn ? h.pin : '꺼짐'
+  $('pin-on').checked = h.pinOn
   $('host-joins').replaceChildren()
   if (!h.joins.length) $('host-joins').textContent = '접속 주소 없음 (네트워크 연결을 확인하세요)'
   for (const j of h.joins) {
@@ -161,6 +165,17 @@ function renderHost (h) {
 
 // 이 PC에서 열었을 때만 호스트 정보가 옴
 fetch('/host').then((r) => r.ok && r.json()).then((h) => h && renderHost(h)).catch(() => {})
+
+$('pin-on').onchange = async () => {
+  const on = $('pin-on').checked
+  if (!on && !confirm('PIN을 끄면 토픽만 알아도 같은 와이파이의 누구나 들어와 메시지와 파일을 보고 보낼 수 있습니다. 끌까요?')) {
+    $('pin-on').checked = true
+    return
+  }
+  const r = await fetch('/host/pin/' + (on ? 'on' : 'off'), { method: 'POST' })
+  if (!r.ok) return alert('PIN 설정을 바꾸지 못했습니다.')
+  renderHost(await r.json())
+}
 
 $('topic-form').onsubmit = async (e) => {
   e.preventDefault()
