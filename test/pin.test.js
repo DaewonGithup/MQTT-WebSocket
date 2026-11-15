@@ -37,3 +37,19 @@ test('호스트 화면은 PIN과 QR(SVG)을 받는다', async () => {
   }
   await s.close()
 })
+
+test('호스트가 PIN을 끄면 PIN 없이 입장·업로드되고, 다시 켜면 거부된다', async () => {
+  const s = await startSession(0)
+  const toggle = (on) => fetch(`http://127.0.0.1:${s.port}/host/pin/${on}`, { method: 'POST' }).then((r) => r.json())
+  const up = () => fetch(`http://127.0.0.1:${s.port}/files`, { method: 'POST', headers: { 'X-Topic': s.topic, 'X-Filename': 'a.txt' }, body: 'x' })
+
+  assert.strictEqual((await toggle('off')).pinOn, false)
+  const c = await connect(s, '')
+  assert.strictEqual((await up()).status, 200)
+  c.end(true)
+
+  assert.strictEqual((await toggle('on')).pinOn, true)
+  await assert.rejects(connect(s, ''))
+  assert.strictEqual((await up()).status, 403)
+  await s.close()
+})
