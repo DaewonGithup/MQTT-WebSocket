@@ -9,6 +9,40 @@ Release notes are added here every time an official version is merged into `main
 
 ---
 
+## v1.4.0 (2026-11-15)
+
+### 한국어
+
+**기능**
+- 더블클릭 실행 파일 `MQTT-Share.exe` 추가. 서버를 켜고 호스트 화면을 브라우저로 바로 엶. 처음 실행 때 필요한 부품을 자동 설치하고, 창을 닫으면 세션이 끝남
+- 호스트가 PIN을 켜고 끌 수 있는 "PIN 사용" 토글 (기본 켜짐)
+- QR을 찍으면 토픽이 자동으로 채워지는 "토픽 자동입력" 토글 (기본 꺼짐)
+
+**디자인**
+- 두 토글 위에 주의 안내 글 표시
+- 참여자 입장 화면의 PIN 칸을 비워 둘 수 있게 함 (PIN이 꺼진 방)
+
+**보안**
+- 토픽 자동입력이 꺼져 있으면 QR에 토픽이 담기지 않음
+- 토글은 호스트 PC에서만 바꿀 수 있음
+
+### English
+
+**Features**
+- Added the double-click launcher `MQTT-Share.exe`. It starts the server and opens the host page in the browser, installs the required packages on first run, and ends the session when its window is closed
+- "PIN 사용" (Use PIN) toggle so the host can turn the PIN on or off (on by default)
+- "토픽 자동입력" (Auto-fill topic) toggle that puts the topic in the QR code so it is filled in on scan (off by default)
+
+**Design**
+- A caution note is shown above each toggle
+- The PIN field on the join page may be left empty (for rooms without a PIN)
+
+**Security**
+- With auto-fill off, the QR code does not contain the topic
+- Toggles can only be changed from the host PC
+
+---
+
 ## v1.3.0 (2026-11-09)
 
 ### 한국어
