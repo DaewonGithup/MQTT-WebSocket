@@ -26,11 +26,15 @@ test('PIN을 5번 틀리면 맞는 PIN도 잠시 거부된다', async () => {
   await s.close()
 })
 
-test('호스트 화면은 PIN과 QR(SVG)을 받는다', async () => {
+test('호스트 화면은 PIN과 QR(SVG)을 받고, 토픽 자동입력은 기본 꺼짐·켜면 QR에 토픽이 담긴다', async () => {
   const s = await startSession(0)
   const h = await (await fetch(`http://127.0.0.1:${s.port}/host`)).json()
   assert.strictEqual(h.pin, s.pin)
-  for (const j of h.joins) {
+  assert.strictEqual(h.qrTopic, false)
+  for (const j of h.joins) assert.ok(!j.url.includes('#t='))
+  const on = await (await fetch(`http://127.0.0.1:${s.port}/host/qr-topic/on`, { method: 'POST' })).json()
+  assert.strictEqual(on.qrTopic, true)
+  for (const j of on.joins) {
     assert.ok(j.url.endsWith(`/#t=${encodeURIComponent(s.topic)}`))
     assert.ok(!j.url.includes(s.pin))
     assert.match(j.qr, /^<svg/)
