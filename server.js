@@ -8,6 +8,7 @@ import crypto from 'node:crypto'
 import { Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { pathToFileURL } from 'node:url'
+import { spawn } from 'node:child_process'
 import { Aedes } from 'aedes'
 import { WebSocketServer, createWebSocketStream } from 'ws'
 import QRCode from 'qrcode'
@@ -41,8 +42,12 @@ export async function startSession (port = 8080, { maxFileBytes = 100 * 1024 * 1
   const idKey = crypto.randomBytes(16)
   const senderId = (clientId) => crypto.createHmac('sha256', idKey).update(clientId).digest('hex').slice(0, 12)
 
+  let pinOn = true // 호스트가 끄면 PIN 없이 누구나 입장·업로드 가능
+  let qrTopic = false // 켜면 QR 주소에 토픽을 담아 찍자마자 토픽 칸이 채워짐
+
   // PIN을 5번 틀린 IP는 1분 동안 맞는 PIN도 거부 (마구 넣어 보기 방지)
   function checkPin (ip, given) {
+    if (!pinOn) return true
     const f = failures.get(ip)
     if (f?.until > Date.now()) return false
     const a = Buffer.from(String(given))
@@ -99,6 +104,12 @@ export async function startSession (port = 8080, { maxFileBytes = 100 * 1024 * 1
     if (fileId) return download(fileId, res)
     // 호스트(이 PC에서 연 브라우저)만 토픽을 보고 세션을 끝낼 수 있음
     if (req.url === '/host/topic' && req.method === 'POST' && isLocal(req)) return changeTopic(req, res)
+    const sw = req.method === 'POST' && isLocal(req) && req.url.match(/^\/host\/(pin|qr-topic)\/(on|off)$/)
+    if (sw) {
+      if (sw[1] === 'pin') pinOn = sw[2] === 'on'
+      else qrTopic = sw[2] === 'on'
+      return hostInfo(res)
+    }
     if (req.url === '/host' && isLocal(req)) {
       if (req.method === 'GET') return hostInfo(res)
       if (req.method === 'POST') {
@@ -117,12 +128,12 @@ export async function startSession (port = 8080, { maxFileBytes = 100 * 1024 * 1
     let urls
     return lanAddresses(session.port)
       .then((addrs) => {
-        urls = addrs.map((a) => `${a}/#t=${encodeURIComponent(topic)}`)
+        urls = addrs.map((a) => qrTopic ? `${a}/#t=${encodeURIComponent(topic)}` : `${a}/`)
         return Promise.all(urls.map((u) => QRCode.toString(u, { type: 'svg', margin: 1 })))
       })
       .then((qrs) => {
         res.setHeader('Content-Type', 'application/json')
-        res.end(JSON.stringify({ topic, pin, joins: urls.map((url, i) => ({ url, qr: qrs[i] })) }))
+        res.end(JSON.stringify({ topic, pin, pinOn, qrTopic, joins: urls.map((url, i) => ({ url, qr: qrs[i] })) }))
       })
       .catch(() => { res.statusCode = 500; res.end() })
   }
@@ -272,4 +283,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     process.exit(0)
   })
   process.on('SIGINT', () => session.close())
+  // 실행 파일(exe) 창의 X를 눌러도 파일을 지우고 끝냄
+  process.on('SIGHUP', () => session.close())
+  // 실행 파일이 켤 때는 호스트 화면을 바로 띄움
+  if (process.env.OPEN_BROWSER && process.platform === 'win32') {
+    spawn('cmd', ['/c', 'start', '', `http://localhost:${session.port}`], { stdio: 'ignore' })
+  }
 }

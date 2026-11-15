@@ -8,13 +8,17 @@
 
 ### 실행
 
+**Windows에서 가장 쉬운 방법:** 폴더의 `MQTT-Share.exe`를 더블클릭하세요. 서버가 켜지고 호스트 화면이 브라우저로 바로 열립니다. 처음에는 필요한 부품을 자동으로 설치합니다. 검은 창을 닫으면 세션이 끝나고 내용이 모두 지워집니다. ([Node.js](https://nodejs.org) 설치 필요, exe를 다시 만들려면 `launcheruild_exe.bat` 실행)
+
+터미널에서 직접 실행하려면:
+
 ```bash
 npm install
 npm start
 ```
 
 1. 호스트 PC 브라우저에서 `http://localhost:8080`을 엽니다. 토픽, PIN, 접속 QR 코드가 보입니다.
-2. 참여자는 같은 와이파이에서 QR을 찍거나 접속 주소로 들어가 토픽과 PIN을 입력합니다. PIN을 5번 틀리면 1분 동안 입장할 수 없습니다.
+2. 참여자는 같은 와이파이에서 QR을 찍거나 접속 주소로 들어가 토픽과 PIN을 입력합니다. PIN을 5번 틀리면 1분 동안 입장할 수 없습니다. 호스트는 "PIN 사용" 토글로 PIN을 끌 수 있습니다(기본은 켜짐). 끄면 토픽만으로 누구나 들어올 수 있습니다. "토픽 자동입력" 토글을 켜면 QR을 찍었을 때 토픽이 자동으로 채워집니다(기본은 꺼짐).
 3. 호스트는 화면의 "토픽 변경"으로 원하는 토픽(한글·영문·숫자·-·_ 3~40자)을 정할 수 있습니다. 바꾸면 입장한 사람은 새 토픽으로 다시 들어와야 합니다. 처음부터 정하려면 `TOPIC=우리반 npm start`(macOS·Linux) 또는 `$env:TOPIC="우리반"; npm start`(Windows PowerShell)처럼 실행합니다.
 4. "파일 보내기"로 파일을 올리면 모두에게 내려받기 링크가 보입니다. 파일은 100MB까지, 이미지·동영상(mp4)·PDF·문서·zip 형식만 되며 30분 뒤 자동으로 지워집니다.
 5. "세션 종료"를 누르거나 터미널에서 Ctrl+C를 누르면 세션이 끝나고 내용이 모두 사라집니다.
@@ -48,13 +52,17 @@ A local MQTT sharing site for moving data between devices: people on the same Wi
 
 ### Run
 
+**Easiest on Windows:** double-click `MQTT-Share.exe` in the folder. It starts the server and opens the host page in your browser. On first run it installs the required packages automatically. Closing the black window ends the session and deletes everything. ([Node.js](https://nodejs.org) required; run `launcheruild_exe.bat` to rebuild the exe)
+
+To run it from a terminal:
+
 ```bash
 npm install
 npm start
 ```
 
 1. On the host PC, open `http://localhost:8080`. The topic, PIN, and join QR codes are shown.
-2. Participants on the same Wi-Fi scan the QR code or open the join address, then enter the topic and PIN. After 5 wrong PINs, that device is blocked for 1 minute.
+2. Participants on the same Wi-Fi scan the QR code or open the join address, then enter the topic and PIN. After 5 wrong PINs, that device is blocked for 1 minute. The host can turn the PIN off with the "PIN 사용" (Use PIN) toggle (on by default); when off, anyone who knows the topic can join. Turn on the "토픽 자동입력" (Auto-fill topic) toggle to put the topic in the QR code so it is filled in automatically (off by default).
 3. The host can set a custom topic (Korean/English letters, digits, `-`, `_`, 3–40 chars) with "토픽 변경" (Change topic). Everyone who already joined must rejoin with the new topic. To set it at startup, run `TOPIC=myroom npm start` (macOS/Linux) or `$env:TOPIC="myroom"; npm start` (Windows PowerShell).
 4. Upload a file with "파일 보내기" (Send file) and everyone gets a download link. Files up to 100 MB; only images, video (mp4), PDF, documents and zip are allowed; files are deleted automatically after 30 minutes.
 5. Press "세션 종료" (End session) or Ctrl+C in the terminal to end the session and delete everything.
