@@ -8,6 +8,7 @@ import crypto from 'node:crypto'
 import { Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { pathToFileURL } from 'node:url'
+import { spawn } from 'node:child_process'
 import { Aedes } from 'aedes'
 import { WebSocketServer, createWebSocketStream } from 'ws'
 import QRCode from 'qrcode'
@@ -280,4 +281,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     process.exit(0)
   })
   process.on('SIGINT', () => session.close())
+  // 실행 파일(exe) 창의 X를 눌러도 파일을 지우고 끝냄
+  process.on('SIGHUP', () => session.close())
+  // 실행 파일이 켤 때는 호스트 화면을 바로 띄움
+  if (process.env.OPEN_BROWSER && process.platform === 'win32') {
+    spawn('cmd', ['/c', 'start', '', `http://localhost:${session.port}`], { stdio: 'ignore' })
+  }
 }
