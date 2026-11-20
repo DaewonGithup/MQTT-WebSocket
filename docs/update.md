@@ -9,6 +9,32 @@ Release notes are added here every time an official version is merged into `main
 
 ---
 
+## v1.4.1 (2026-11-20) · 핫픽스 · Hotfix
+
+### 한국어
+
+**보안**
+- 호스트 기능(PIN·토픽 설정, 세션 종료, PIN 보기)은 이 PC의 호스트 화면(`localhost`)에서 온 요청만 받음. 호스트가 연 다른 웹사이트가 몰래 PIN을 끄거나 PIN을 읽어 가는 것을 막음
+- 다른 사이트가 호스트 화면을 겹쳐 놓고 버튼을 누르게 속이는 것(클릭재킹)을 막음
+- 글 한 개는 1만 자까지, 올린 파일은 합계 1GB까지만 받음. 큰 글·파일로 메모리나 디스크를 채워 멈추게 하는 것을 막음
+- PIN을 다시 켜면 모두 끊김. PIN을 아는 사람은 자동으로 다시 들어오고, PIN 없이 들어온 사람은 남지 않음
+- 토픽을 바꾸면 옛 방의 파일을 지움
+- 서버를 켤 때, 강제 종료·정전으로 남은 지난 세션 임시 폴더를 지움
+- 참여자 비밀 id를 보안용 난수로 만듦
+
+### English
+
+**Security**
+- Host features (PIN and topic settings, ending the session, reading the PIN) only accept requests from the host page on this PC (`localhost`). Other websites opened by the host can no longer silently turn off or read the PIN
+- Blocked clickjacking (another site overlaying the host page to trick clicks)
+- A message may be up to 10,000 characters and uploaded files up to 1 GB in total, so huge messages or files can no longer fill memory or disk
+- Turning the PIN back on disconnects everyone. People who know the PIN rejoin automatically; people who joined without a PIN are not left in the room
+- Changing the topic deletes the old room's files
+- On startup, leftover session folders from a crash or power loss are deleted
+- Participants' secret ids now use a cryptographically secure random generator
+
+---
+
 ## v1.4.0 (2026-11-15)
 
 ### 한국어
