@@ -133,7 +133,8 @@
 <script src="/mqtt.min.js"></script>
 <script>
 const $ = (id) => document.getElementById(id)
-const me = Math.random().toString(36).slice(2)
+// 비밀 id: 서버가 이것으로 보낸 사람 표시를 만들므로 추측하기 어려운 보안용 난수 사용
+const me = Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => b.toString(16).padStart(2, '0')).join('')
 let client, topic, pin, myId // myId: 서버가 알려 준 내 표시 id
 
 // QR로 들어오면 주소 끝(#t=토픽)에서 토픽을 미리 채움

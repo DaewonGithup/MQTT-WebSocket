@@ -24,17 +24,24 @@ const MAX_PIN_TRIES = 5
 const PIN_LOCK_MS = 60 * 1000
 
 const isLocal = (req) => ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress)
+// 이 PC의 호스트 화면에서 온 요청만 허용. IP만 보면 호스트가 연 다른 사이트의 요청(CSRF)과
+// 가짜 주소로 localhost에 붙는 요청(DNS rebinding)도 통과하므로 Host·Origin까지 확인
+const isHost = (req) => isLocal(req) &&
+  /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(req.headers.host ?? '') &&
+  (!req.headers.origin || req.headers.origin === `http://${req.headers.host}`)
+const MAX_TEXT = 10000 // 글 한 개 최대 글자 수
 
 // 경로 조작(../, 폴더 구분자)과 제어문자를 없앤 파일 이름
 const cleanName = (name) => path.basename(name.replace(/\\/g, '/')).replace(/[\x00-\x1f<>:"|?*]/g, '_').slice(0, 200)
 
-export async function startSession (port = 8080, { maxFileBytes = 100 * 1024 * 1024, fileTtlMs = 30 * 60 * 1000, topic: customTopic } = {}) {
+export async function startSession (port = 8080, { maxFileBytes = 100 * 1024 * 1024, maxTotalBytes = 1024 * 1024 * 1024, fileTtlMs = 30 * 60 * 1000, topic: customTopic } = {}) {
   if (customTopic !== undefined && !TOPIC_RE.test(customTopic)) throw new Error('토픽은 한글·영문·숫자·-·_ 로 3~40자여야 합니다.')
   // 호스트가 정하지 않으면 랜덤 토픽: 추측해서 들어오기 어렵게 함
   let topic = customTopic ?? 'room/' + crypto.randomBytes(8).toString('hex')
   // 세션 전용 임시 폴더. 종료 시 통째로 지움
   const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'mqtt-share-'))
   const files = new Map() // id -> { name, size, timer }
+  let usedBytes = 0 // 지금 임시 폴더에 쌓인 파일 크기 합 (올리는 중인 것 포함)
   // 6자리 PIN: 토픽을 알아도 PIN이 없으면 못 들어옴
   const pin = String(crypto.randomInt(0, 1e6)).padStart(6, '0')
   const failures = new Map() // ip -> { count, until }
@@ -75,7 +82,7 @@ export async function startSession (port = 8080, { maxFileBytes = 100 * 1024 * 1
       // 참여자는 글만 보낼 수 있음. session-closed·file 같은 알림은 서버만 보냄
       let m
       try { m = JSON.parse(packet.payload) } catch {}
-      if (m?.type !== 'text' || typeof m.text !== 'string') return cb(new Error('only text'))
+      if (m?.type !== 'text' || typeof m.text !== 'string' || m.text.length > MAX_TEXT) return cb(new Error('only text'))
       // 참여자가 적은 from은 버리고 서버가 확인한 id로 다시 씀
       packet.payload = Buffer.from(JSON.stringify({ type: 'text', from: senderId(client.id), text: m.text }))
       packet.retain = false // 종료 후 남는 메시지가 없게
@@ -90,6 +97,9 @@ export async function startSession (port = 8080, { maxFileBytes = 100 * 1024 * 1
 
   const server = http.createServer((req, res) => {
     res.setHeader('Cache-Control', 'no-store')
+    // 다른 사이트가 이 화면을 몰래 겹쳐 놓고 버튼을 누르게 하는 것(클릭재킹) 차단
+    res.setHeader('X-Frame-Options', 'DENY')
+    res.setHeader('Content-Security-Policy', "frame-ancestors 'none'")
     // QR 앱·메신저가 붙이는 ?꼬리가 있어도 첫 화면을 보여 줌
     if (req.method === 'GET' && (req.url === '/' || req.url.startsWith('/?'))) {
       res.setHeader('Content-Type', 'text/html; charset=utf-8')
@@ -103,14 +113,18 @@ export async function startSession (port = 8080, { maxFileBytes = 100 * 1024 * 1
     const fileId = req.method === 'GET' && req.url.match(/^\/files\/([0-9a-f]{32})$/)?.[1]
     if (fileId) return download(fileId, res)
     // 호스트(이 PC에서 연 브라우저)만 토픽을 보고 세션을 끝낼 수 있음
-    if (req.url === '/host/topic' && req.method === 'POST' && isLocal(req)) return changeTopic(req, res)
-    const sw = req.method === 'POST' && isLocal(req) && req.url.match(/^\/host\/(pin|qr-topic)\/(on|off)$/)
+    if (req.url === '/host/topic' && req.method === 'POST' && isHost(req)) return changeTopic(req, res)
+    const sw = req.method === 'POST' && isHost(req) && req.url.match(/^\/host\/(pin|qr-topic)\/(on|off)$/)
     if (sw) {
-      if (sw[1] === 'pin') pinOn = sw[2] === 'on'
+      if (sw[1] === 'pin') {
+        // PIN 없이 들어온 사람이 남지 않게, 다시 켜면 모두 끊음 (PIN을 아는 사람은 자동 재입장)
+        if (!pinOn && sw[2] === 'on') for (const ws of wss.clients) ws.close()
+        pinOn = sw[2] === 'on'
+      }
       else qrTopic = sw[2] === 'on'
       return hostInfo(res)
     }
-    if (req.url === '/host' && isLocal(req)) {
+    if (req.url === '/host' && isHost(req)) {
       if (req.method === 'GET') return hostInfo(res)
       if (req.method === 'POST') {
         // 응답을 다 보낸 뒤에 연결을 끊어야 호스트 화면이 종료를 알 수 있음
@@ -161,6 +175,8 @@ export async function startSession (port = 8080, { maxFileBytes = 100 * 1024 * 1
       topic = next
       await new Promise((resolve) => broker.publish({ topic: old, payload: JSON.stringify({ type: 'topic-changed' }), qos: 1, retain: false }, resolve))
       for (const ws of wss.clients) ws.close()
+      // 옛 방 파일은 링크만 알면 받을 수 있으므로 함께 지움
+      await Promise.all([...files.keys()].map(removeFile))
     }
     hostInfo(res)
   }
@@ -179,17 +195,23 @@ export async function startSession (port = 8080, { maxFileBytes = 100 * 1024 * 1
     const file = path.join(dir, id)
     let size = 0
     // content-length 없이 보내도 크기 제한이 지켜지게 받으면서 셈
+    // 동시에 여러 개를 올려도 전체 한도를 넘지 않게, 받는 만큼 바로 합계에 더함
     const limit = new Transform({
       transform (chunk, _, cb) {
         size += chunk.length
-        cb(size > maxFileBytes ? new Error('too large') : null, chunk)
+        usedBytes += chunk.length
+        cb(size > maxFileBytes || usedBytes > maxTotalBytes ? new Error('too large') : null, chunk)
       }
     })
     try {
+      await fsp.mkdir(dir, { recursive: true }) // 오래된 빈 폴더 정리로 지워졌어도 다시 만듦
       await pipeline(req, limit, fs.createWriteStream(file))
     } catch {
+      const full = usedBytes > maxTotalBytes
+      usedBytes -= size
       await fsp.rm(file, { force: true, maxRetries: 3 })
-      return fail(size > maxFileBytes ? 413 : 400, size > maxFileBytes ? '파일이 너무 큽니다.' : '업로드가 중단되었습니다.')
+      if (size > maxFileBytes) return fail(413, '파일이 너무 큽니다.')
+      return full ? fail(507, '호스트 저장 공간 한도를 넘었습니다. 오래된 파일이 지워진 뒤 다시 보내세요.') : fail(400, '업로드가 중단되었습니다.')
     }
 
     const timer = setTimeout(() => removeFile(id), fileTtlMs)
@@ -218,11 +240,13 @@ export async function startSession (port = 8080, { maxFileBytes = 100 * 1024 * 1
     if (!f) return
     clearTimeout(f.timer)
     files.delete(id)
+    usedBytes -= f.size
     await fsp.rm(path.join(dir, id), { force: true, maxRetries: 3 })
     notify({ type: 'file-removed', id })
   }
 
-  const wss = new WebSocketServer({ server, path: '/mqtt' })
+  // MQTT 패킷 하나는 1MB까지 (기본 100MB면 큰 글 하나로 모두의 메모리가 찰 수 있음)
+  const wss = new WebSocketServer({ server, path: '/mqtt', maxPayload: 1024 * 1024 })
   // req를 넘겨야 authenticate에서 접속한 IP를 알 수 있음
   wss.on('connection', (ws, req) => broker.handle(createWebSocketStream(ws), req))
 
@@ -272,7 +296,19 @@ export function lanAddresses (port) {
   }).then((ips) => ips.map((ip) => `http://${ip}:${port}`))
 }
 
+// 정전·강제 종료로 남은 지난 세션 폴더를 지움. 살아 있는 세션 폴더는 파일이 30분마다 바뀌므로
+// 1시간 넘게 그대로인 것만 지움 (빈 폴더가 지워져도 업로드 때 다시 만듦)
+async function removeStaleDirs () {
+  for (const name of await fsp.readdir(os.tmpdir())) {
+    if (!name.startsWith('mqtt-share-')) continue
+    const p = path.join(os.tmpdir(), name)
+    const st = await fsp.stat(p).catch(() => null)
+    if (st?.isDirectory() && Date.now() - st.mtimeMs > 60 * 60 * 1000) await fsp.rm(p, { recursive: true, force: true }).catch(() => {})
+  }
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  await removeStaleDirs()
   const session = await startSession(Number(process.env.PORT) || 8080, { topic: process.env.TOPIC || undefined })
   console.log(`세션 토픽: ${session.topic}`)
   console.log(`PIN: ${session.pin}`)
